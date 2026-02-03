@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, CreditCard, Wallet, Settings, MoreVertical, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, Wallet, Settings, MoreVertical, LogOut, Briefcase } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "../ui/Button";
 import { clientConfig } from "../../config/client";
@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    { name: "CRM", href: "/crm", icon: Users },
+    { name: "Clientes", href: "/crm", icon: Users },
+    { name: "Servicios", href: "/services", icon: Briefcase }, // <--- Reverted to Servicios
     { name: "Facturación", href: "/billing", icon: CreditCard },
     { name: "Tesorería", href: "/finance", icon: Wallet },
     { name: "Configuración", href: "/settings", icon: Settings },
@@ -27,7 +28,7 @@ export function Sidebar() {
                         {clientConfig.logo ? (
                             <img src={clientConfig.logo} alt={clientConfig.name} className="h-8 w-auto object-contain" />
                         ) : (
-                            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-glow-sm text-white">
+                            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-glow-sm text-white">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
                                     <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
                                 </svg>
@@ -62,7 +63,7 @@ export function Sidebar() {
                             className={cn(
                                 "group relative flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 outline-none",
                                 isActive
-                                    ? "text-indigo-600"
+                                    ? "text-primary"
                                     : "text-slate-500 hover:text-slate-900"
                             )}
                         >
@@ -70,7 +71,7 @@ export function Sidebar() {
                             {isActive && (
                                 <motion.div
                                     layoutId="sidebarActiveTab"
-                                    className="absolute inset-0 bg-indigo-50/80 border border-indigo-100/50 rounded-xl"
+                                    className="absolute inset-0 bg-primary/10 border border-primary/20 rounded-xl"
                                     initial={false}
                                     transition={{ type: "spring", stiffness: 350, damping: 30 }}
                                 />
@@ -80,7 +81,7 @@ export function Sidebar() {
                             <item.icon
                                 className={cn(
                                     "relative z-10 h-[1.15rem] w-[1.15rem] transition-colors duration-200",
-                                    isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                                    isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600"
                                 )}
                             />
 
@@ -97,7 +98,7 @@ export function Sidebar() {
                                 <motion.div
                                     initial={{ opacity: 0, scale: 0 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    className="absolute right-3 w-1.5 h-1.5 rounded-full bg-indigo-600 shadow-sm shadow-indigo-500/50"
+                                    className="absolute right-3 w-1.5 h-1.5 rounded-full bg-primary shadow-sm shadow-primary/50"
                                 />
                             )}
                         </Link>

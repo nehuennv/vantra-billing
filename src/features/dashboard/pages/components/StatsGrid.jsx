@@ -23,7 +23,7 @@ function StatCard({ title, value, subtext, icon: Icon, trend, trendDir, color, l
 
     // Colores dinámicos basados en la prop 'color'
     const colorStyles = {
-        indigo: "bg-indigo-50 text-indigo-600",
+        indigo: "bg-primary/10 text-primary", // Replaced indigo with primary
         emerald: "bg-emerald-50 text-emerald-600",
         orange: "bg-orange-50 text-orange-600",
         slate: "bg-slate-100 text-slate-600",
