@@ -3,12 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
-import { Plus, Zap, Repeat, Trash2, Edit, Search, Package, Wifi, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield, Layers, LayoutGrid, Filter, ArrowUpDown, SlidersHorizontal, ArrowUp, ArrowDown, X } from "lucide-react";
+import { Plus, Zap, Repeat, Trash2, Edit, Search, Package, Wifi, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield, Layers, LayoutGrid, Filter, ArrowUpDown, SlidersHorizontal, ArrowUp, ArrowDown, X, PackageOpen } from "lucide-react";
 import { mockServicesCatalog, mockBudgetTemplates } from "../../../data/mockData";
 import { CreateServiceModal } from "../../../components/modals/CreateServiceModal";
 import { CreatePackageModal } from "../components/CreatePackageModal";
 import { ConfirmDeleteModal } from "../../../components/modals/ConfirmDeleteModal";
 import { mockBackend } from "../../../services/mockBackend";
+import { toast } from 'sonner';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { Skeleton } from '../../../components/ui/Skeleton';
 
 // Mapa de iconos...
 const ICON_MAP = {
@@ -52,48 +55,48 @@ export default function ServicesPage() {
                 } else {
                     // Seed if empty for demo
                     setServices(mockServicesCatalog);
-                    // Optionally push to backend here? For now just use local state if backend empty
                 }
             } catch (err) {
                 console.error("Error loading catalog", err);
                 setServices(mockServicesCatalog); // Fallback
+                toast.error("Error al cargar el catálogo de servicios");
             } finally {
                 setIsLoading(false);
             }
         };
-        load();
+        // Simulated delay for Skeleton demo anywhere between 500-1000ms
+        setTimeout(load, 800);
     }, []);
 
     // --- Service Handlers ---
     const handleSaveService = async (serviceData) => {
-        if (serviceData.id && services.some(s => s.id === serviceData.id)) {
-            // EDIT
-            try {
+        const promise = async () => {
+            if (serviceData.id && services.some(s => s.id === serviceData.id)) {
+                // EDIT
+
                 // If it's a seed item (string ID from mockData) vs uuid from backend
                 // If backend has it, we update backend. If it's local only (seed), we just update local state
-                // unless we force backend syncing.
-                // Let's try to update backend first.
                 try {
                     await mockBackend.updateService(serviceData.id, serviceData);
                 } catch (e) {
-                    // If not found in backend (because it was seed data), we might want to create it?
-                    // Or just ignore backend error and update local state for demo.
                     console.warn("Backend update failed (maybe seed data):", e);
                 }
 
                 setServices(prev => prev.map(s => s.id === serviceData.id ? { ...s, ...serviceData } : s));
-            } catch (error) {
-                console.error("Error updating service", error);
-            }
-        } else {
-            // CREATE
-            try {
+            } else {
+                // CREATE
                 const newSvc = await mockBackend.createService(serviceData);
                 setServices(prev => [...prev, newSvc]);
-            } catch (error) {
-                console.error("Error creating service", error);
             }
-        }
+        };
+
+        toast.promise(promise(), {
+            loading: 'Guardando servicio...',
+            success: 'Servicio guardado correctamente',
+            error: 'Error al guardar el servicio'
+        });
+
+        setIsServiceModalOpen(false);
         setServiceToEdit(null);
     };
 
@@ -110,28 +113,41 @@ export default function ServicesPage() {
     const handleConfirmDelete = async () => {
         if (!itemToDelete) return;
 
-        if (itemToDelete.type === 'service') {
-            try {
-                await mockBackend.deleteService(itemToDelete.id);
-            } catch (e) {
-                console.warn("Backend delete warn:", e);
+        const promise = async () => {
+            if (itemToDelete.type === 'service') {
+                try {
+                    await mockBackend.deleteService(itemToDelete.id);
+                } catch (e) {
+                    console.warn("Backend delete warn:", e);
+                }
+                setServices(prev => prev.filter(s => s.id !== itemToDelete.id));
+            } else {
+                // Budget/Package deletion
+                setBudgets(prev => prev.filter(b => b.id !== itemToDelete.id));
             }
-            setServices(prev => prev.filter(s => s.id !== itemToDelete.id));
-        } else {
-            // Budget/Package deletion
-            setBudgets(prev => prev.filter(b => b.id !== itemToDelete.id));
-        }
+        };
+
+        toast.promise(promise(), {
+            loading: 'Eliminando...',
+            success: `${itemToDelete.type === 'service' ? 'Servicio' : 'Presupuesto'} eliminado`,
+            error: 'Error al eliminar'
+        });
+
         setIsDeleteModalOpen(false);
         setItemToDelete(null);
     };
 
     // --- Package Handlers ---
     const handleSavePackage = (savedPackage) => {
+        // Local only for now as per previous code structure
         const exists = budgets.find(b => b.id === savedPackage.id);
+
         if (exists) {
             setBudgets(budgets.map(b => b.id === savedPackage.id ? savedPackage : b));
+            toast.success("Presupuesto actualizado");
         } else {
             setBudgets([...budgets, savedPackage]);
+            toast.success("Presupuesto creado");
         }
         setIsPackageModalOpen(false);
         setPackageToEdit(null);
@@ -165,8 +181,6 @@ export default function ServicesPage() {
         }
 
         // 2. Filter
-        // NOTE: The modal saves types as 'recurring' or 'unique'.
-        // We must match those values here.
         if (type === 'services' && filterType !== 'all') {
             result = result.filter(item => item.type === filterType);
         }
@@ -193,7 +207,7 @@ export default function ServicesPage() {
     const getGroupedServices = () => {
         return {
             recurring: processedServices.filter(s => s.type === 'recurring'),
-            one_time: processedServices.filter(s => s.type === 'unique') // Fixed: 'unique' per modal logic
+            one_time: processedServices.filter(s => s.type === 'unique')
         };
     };
 
@@ -257,6 +271,28 @@ export default function ServicesPage() {
             </Card>
         );
     };
+
+    // Skeleton Render
+    const renderSkeletons = () => (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="border border-slate-200 rounded-xl p-6 bg-white space-y-4">
+                    <div className="flex justify-between items-start">
+                        <Skeleton className="h-12 w-12 rounded-xl" />
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                    </div>
+                    <div className="space-y-2">
+                        <Skeleton className="h-6 w-3/4" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-2/3" />
+                    </div>
+                    <div className="pt-4 mt-4 border-t border-slate-100">
+                        <Skeleton className="h-8 w-32" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -408,7 +444,9 @@ export default function ServicesPage() {
             </Card>
 
             {/* --- CONTENT GRID --- */}
-            {viewMode === 'services' && (
+            {isLoading ? (
+                renderSkeletons()
+            ) : viewMode === 'services' ? (
                 isGrouped ? (
                     // GROUPED VIEW
                     <div className="space-y-8">
@@ -439,9 +477,13 @@ export default function ServicesPage() {
                         )}
 
                         {getGroupedServices().recurring.length === 0 && getGroupedServices().one_time.length === 0 && (
-                            <div className="py-12 flex flex-col items-center justify-center text-slate-400">
-                                <p>No se encontraron servicios con los filtros actuales.</p>
-                            </div>
+                            <EmptyState
+                                icon={PackageOpen}
+                                title="No se encontraron servicios"
+                                description="No hay servicios que coincidan con los filtros seleccionados."
+                                actionLabel="Limpiar Filtros"
+                                onAction={clearFilters}
+                            />
                         )}
                     </div>
                 ) : (
@@ -450,16 +492,20 @@ export default function ServicesPage() {
                         {processedServices.length > 0 ? (
                             processedServices.map(renderServiceCard)
                         ) : (
-                            <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
-                                <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mb-4"><Package className="h-8 w-8 text-slate-300" /></div>
-                                <p className="text-lg font-medium text-slate-600">No se encontraron servicios</p>
+                            <div className="col-span-full">
+                                <EmptyState
+                                    icon={PackageOpen}
+                                    title="No se encontraron servicios"
+                                    description={searchTerm ? "Intenta con otra búsqueda o limpia los filtros." : "Aún no has creado servicios en el catálogo."}
+                                    actionLabel={searchTerm ? "Limpiar Filtros" : "Crear Nuevo Servicio"}
+                                    onAction={searchTerm ? clearFilters : handleOpenNewService}
+                                />
                             </div>
                         )}
                     </div>
                 )
-            )}
-
-            {viewMode === 'budgets' && (
+            ) : (
+                // BUDGETS VIEW
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {processedBudgets.length > 0 ? (
                         processedBudgets.map((budget) => (
@@ -535,10 +581,14 @@ export default function ServicesPage() {
                             </Card>
                         ))
                     ) : (
-                        <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
-                            <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mb-4"><Layers className="h-8 w-8 text-slate-300" /></div>
-                            <p className="text-lg font-medium text-slate-600">No hay presupuestos creados</p>
-                            <Button variant="link" onClick={() => handleOpenNewPackage()} className="text-primary">Crear mi primer presupuesto</Button>
+                        <div className="col-span-full">
+                            <EmptyState
+                                icon={Layers}
+                                title="No hay presupuestos creados"
+                                description="Crea paquetes de servicios predefinidos para agilizar tus propuestas."
+                                actionLabel="Crear mi primer presupuesto"
+                                onAction={handleOpenNewPackage}
+                            />
                         </div>
                     )}
                 </div>

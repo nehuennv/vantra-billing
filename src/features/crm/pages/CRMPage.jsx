@@ -7,6 +7,8 @@ import { Plus, Search, Eye, UserX, LayoutGrid, List } from "lucide-react";
 import { ClientKanbanBoard } from "../components/ClientKanbanBoard";
 import { mockBackend } from "../../../services/mockBackend";
 import { CreateClientModal } from "../components/CreateClientModal";
+import { toast } from 'sonner';
+import { Skeleton } from "../../../components/ui/Skeleton";
 
 const DEFAULT_COLUMNS = [
     { id: 'potential', title: 'POTENCIAL' },
@@ -24,6 +26,7 @@ export default function CRMPage() {
     const [clients, setClients] = useState([]);
     const [columns, setColumns] = useState(DEFAULT_COLUMNS);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     // Load Clients
     useEffect(() => {
@@ -33,6 +36,10 @@ export default function CRMPage() {
                 setClients(data);
             } catch (error) {
                 console.error("Error loading clients", error);
+                toast.error("Error al cargar los clientes");
+            } finally {
+                // Simulate a slight delay for skeleton demo
+                setTimeout(() => setIsLoading(false), 800);
             }
         };
         load();
@@ -40,14 +47,19 @@ export default function CRMPage() {
 
     // Handlers
     const handleAddClient = async (clientData) => {
-        // clientData comes with a temporary ID from modal, strip it to let backend generate one
         const { id, ...dataToSave } = clientData;
-        try {
+
+        const promise = async () => {
             const newClient = await mockBackend.createClient(dataToSave);
             setClients(prev => [...prev, newClient]);
-        } catch (error) {
-            console.error("Error creating client", error);
-        }
+            return newClient;
+        };
+
+        toast.promise(promise(), {
+            loading: 'Creando cliente...',
+            success: (data) => `Cliente ${data.name} creado exitosamente`,
+            error: 'Error al crear el cliente'
+        });
     };
 
     const handleTasksChange = (updatedTasks) => {
@@ -79,6 +91,41 @@ export default function CRMPage() {
     const filteredClients = clients.filter(client =>
         client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         client.cuit.includes(searchTerm)
+    );
+
+    // SKELETONS
+    const renderListSkeleton = () => (
+        <Card className="overflow-hidden border-slate-200 shadow-sm bg-white">
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-slate-500 uppercase bg-slate-50/80 border-b border-slate-100">
+                        <tr>
+                            <th className="px-6 py-4">Cliente / Empresa</th>
+                            <th className="px-6 py-4">Servicio (Matriz)</th>
+                            <th className="px-6 py-4">Estado</th>
+                            <th className="px-6 py-4 text-right">Deuda</th>
+                            <th className="px-6 py-4 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                            <tr key={i}>
+                                <td className="px-6 py-4">
+                                    <div className="space-y-2">
+                                        <Skeleton className="h-5 w-32" />
+                                        <Skeleton className="h-3 w-20" />
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
+                                <td className="px-6 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
+                                <td className="px-6 py-4 text-right"><Skeleton className="h-5 w-16 ml-auto" /></td>
+                                <td className="px-6 py-4 flex justify-center"><Skeleton className="h-9 w-9 rounded-full" /></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </Card>
     );
 
     return (
@@ -131,106 +178,113 @@ export default function CRMPage() {
                 </CardContent>
             </Card>
 
-            {/* VISTA: LISTA */}
-            {viewMode === 'list' && (
-                <Card className="overflow-hidden border-slate-200 shadow-sm bg-white animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-slate-500 uppercase bg-slate-50/80 border-b border-slate-100">
-                                <tr>
-                                    <th className="px-6 py-4 font-semibold tracking-wide">Cliente / Empresa</th>
-                                    <th className="px-6 py-4 font-semibold tracking-wide">Servicio (Matriz)</th>
-                                    <th className="px-6 py-4 font-semibold tracking-wide">Estado</th>
-                                    <th className="px-6 py-4 font-semibold tracking-wide text-right">Deuda</th>
-                                    <th className="px-6 py-4 font-semibold tracking-wide text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {filteredClients.length > 0 ? (
-                                    filteredClients.map((client) => {
-                                        // Resolve Status Label
-                                        const statusCol = columns.find(c => c.id === client.status);
-                                        const statusLabel = statusCol ? statusCol.title : client.status;
+            {/* CONTENT */}
+            {isLoading ? (
+                renderListSkeleton()
+            ) : (
+                <>
+                    {/* VISTA: LISTA */}
+                    {viewMode === 'list' && (
+                        <Card className="overflow-hidden border-slate-200 shadow-sm bg-white animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs text-slate-500 uppercase bg-slate-50/80 border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-6 py-4 font-semibold tracking-wide">Cliente / Empresa</th>
+                                            <th className="px-6 py-4 font-semibold tracking-wide">Servicio (Matriz)</th>
+                                            <th className="px-6 py-4 font-semibold tracking-wide">Estado</th>
+                                            <th className="px-6 py-4 font-semibold tracking-wide text-right">Deuda</th>
+                                            <th className="px-6 py-4 font-semibold tracking-wide text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filteredClients.length > 0 ? (
+                                            filteredClients.map((client) => {
+                                                // Resolve Status Label
+                                                const statusCol = columns.find(c => c.id === client.status);
+                                                const statusLabel = statusCol ? statusCol.title : client.status;
 
-                                        return (
-                                            <tr key={client.id} className="group hover:bg-slate-50/80 transition-colors duration-200">
-                                                {/* COLUMNA NOMBRE (CLICKABLE) */}
-                                                <td className="px-6 py-4">
-                                                    <Link to={`/crm/clients/${client.id}`} className="block group-hover:translate-x-1 transition-transform duration-200">
-                                                        <div className="font-bold text-slate-900 group-hover:text-primary transition-colors">
-                                                            {client.name}
+                                                return (
+                                                    <tr key={client.id} className="group hover:bg-slate-50/80 transition-colors duration-200">
+                                                        {/* COLUMNA NOMBRE (CLICKABLE) */}
+                                                        <td className="px-6 py-4">
+                                                            <Link to={`/crm/clients/${client.id}`} className="block group-hover:translate-x-1 transition-transform duration-200">
+                                                                <div className="font-bold text-slate-900 group-hover:text-primary transition-colors">
+                                                                    {client.name}
+                                                                </div>
+                                                                <div className="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-2">
+                                                                    {client.cuit}
+                                                                    {client.businessName && <span className="text-slate-300">• {client.businessName}</span>}
+                                                                </div>
+                                                            </Link>
+                                                        </td>
+
+                                                        <td className="px-6 py-4 text-slate-600 font-medium">
+                                                            {client.servicePlan}
+                                                        </td>
+
+                                                        <td className="px-6 py-4">
+                                                            <Badge variant="outline" className="bg-slate-50">
+                                                                {statusLabel}
+                                                            </Badge>
+                                                        </td>
+
+                                                        <td className="px-6 py-4 text-right font-bold">
+                                                            {client.debt > 0 ? (
+                                                                <span className="text-rose-600 bg-rose-50 px-2 py-1 rounded-md">
+                                                                    ${client.debt.toLocaleString()}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-300">-</span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* COLUMNA ACCIONES */}
+                                                        <td className="px-6 py-4 text-center">
+                                                            <Link to={`/crm/clients/${client.id}`}>
+                                                                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full hover:bg-primary/10 hover:text-primary transition-all">
+                                                                    <Eye className="h-4 w-4" />
+                                                                    <span className="sr-only">Ver detalle</span>
+                                                                </Button>
+                                                            </Link>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })
+                                        ) : (
+                                            // EMPTY STATE (Cuando no encuentra nada)
+                                            <tr>
+                                                <td colSpan="5" className="py-12 text-center">
+                                                    <div className="flex flex-col items-center justify-center text-slate-400">
+                                                        <div className="h-12 w-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                                                            <UserX className="h-6 w-6 text-slate-300" />
                                                         </div>
-                                                        <div className="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-2">
-                                                            {client.cuit}
-                                                            {client.businessName && <span className="text-slate-300">• {client.businessName}</span>}
-                                                        </div>
-                                                    </Link>
-                                                </td>
-
-                                                <td className="px-6 py-4 text-slate-600 font-medium">
-                                                    {client.servicePlan}
-                                                </td>
-
-                                                <td className="px-6 py-4">
-                                                    <Badge variant="outline" className="bg-slate-50">
-                                                        {statusLabel}
-                                                    </Badge>
-                                                </td>
-
-                                                <td className="px-6 py-4 text-right font-bold">
-                                                    {client.debt > 0 ? (
-                                                        <span className="text-rose-600 bg-rose-50 px-2 py-1 rounded-md">
-                                                            ${client.debt.toLocaleString()}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-slate-300">-</span>
-                                                    )}
-                                                </td>
-
-                                                {/* COLUMNA ACCIONES */}
-                                                <td className="px-6 py-4 text-center">
-                                                    <Link to={`/crm/clients/${client.id}`}>
-                                                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full hover:bg-primary/10 hover:text-primary transition-all">
-                                                            <Eye className="h-4 w-4" />
-                                                            <span className="sr-only">Ver detalle</span>
-                                                        </Button>
-                                                    </Link>
+                                                        <p className="font-medium text-slate-600">No se encontraron clientes</p>
+                                                        <p className="text-sm">Prueba con otro nombre o CUIT.</p>
+                                                    </div>
                                                 </td>
                                             </tr>
-                                        )
-                                    })
-                                ) : (
-                                    // EMPTY STATE (Cuando no encuentra nada)
-                                    <tr>
-                                        <td colSpan="5" className="py-12 text-center">
-                                            <div className="flex flex-col items-center justify-center text-slate-400">
-                                                <div className="h-12 w-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                                                    <UserX className="h-6 w-6 text-slate-300" />
-                                                </div>
-                                                <p className="font-medium text-slate-600">No se encontraron clientes</p>
-                                                <p className="text-sm">Prueba con otro nombre o CUIT.</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
-            )}
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    )}
 
-            {/* VISTA: KANBAN (BOARD) */}
-            {viewMode === 'kanban' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <ClientKanbanBoard
-                        columns={columns}
-                        tasks={filteredClients}
-                        onTasksChange={handleTasksChange}
-                        onAddColumn={handleAddColumn}
-                        onDeleteColumn={handleDeleteColumn}
-                        onEditColumn={handleEditColumn}
-                    />
-                </div>
+                    {/* VISTA: KANBAN (BOARD) */}
+                    {viewMode === 'kanban' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <ClientKanbanBoard
+                                columns={columns}
+                                tasks={filteredClients}
+                                onTasksChange={handleTasksChange}
+                                onAddColumn={handleAddColumn}
+                                onDeleteColumn={handleDeleteColumn}
+                                onEditColumn={handleEditColumn}
+                            />
+                        </div>
+                    )}
+                </>
             )}
 
             <CreateClientModal

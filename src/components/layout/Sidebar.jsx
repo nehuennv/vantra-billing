@@ -7,9 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Clientes", href: "/crm", icon: Users },
-    { name: "Servicios", href: "/services", icon: Briefcase }, // <--- Reverted to Servicios
-    { name: "Facturación", href: "/billing", icon: CreditCard },
-    { name: "Tesorería", href: "/finance", icon: Wallet },
+    { name: "Servicios", href: "/services", icon: Briefcase },
     { name: "Configuración", href: "/settings", icon: Settings },
 ];
 

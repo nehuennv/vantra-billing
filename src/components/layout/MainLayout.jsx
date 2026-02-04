@@ -8,7 +8,7 @@ export function MainLayout() {
     const animatedOutlet = useOutlet();
 
     return (
-        <div className="flex h-screen w-full bg-gradient-to-br from-primary/10 via-slate-50 to-white overflow-hidden font-sans text-slate-900">
+        <div className="flex h-screen w-full bg-gradient-to-br from-primary/30 via-slate-50 to-white overflow-hidden font-sans text-slate-900">
             {/* Sidebar Area - Fixed width wrapper for the floating sidebar */}
             <div className="hidden md:block w-72 shrink-0" />
 

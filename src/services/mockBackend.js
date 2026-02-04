@@ -1,40 +1,155 @@
 import { v4 as uuidv4 } from 'uuid';
 
 // --- HELPER LOCALSTORAGE ---
+const DATA_VERSION = 'v4-fix-catalog'; // Increment to force reset
+
+// --- CONSTANTES ---
+const PLANS_CATALOG = [
+    { id: 'p1', name: "Plan Hogar 100MB", price: 18000, desc: "FTTH 100MB Residencial" },
+    { id: 'p2', name: "Plan Hogar 300MB", price: 25000, desc: "FTTH 300MB Residencial + TV" },
+    { id: 'p3', name: "Pyme Pack 300MB", price: 45000, desc: "Internet Simétrico + 1 IP Fija" },
+    { id: 'p4', name: "Corp Dedicado 100MB", price: 120000, desc: "Enlace Dedicado SLA 99.9%" }
+];
+
+// --- HELPER LOCALSTORAGE (ROBUST) ---
 const loadData = (key, defaultData) => {
+    // Versionado por key para evitar race conditions
+    const hiddenVersion = localStorage.getItem(`vantra_version_${key}`);
     const stored = localStorage.getItem(`vantra_${key}`);
-    return stored ? JSON.parse(stored) : defaultData;
+
+    // Si la versión para ESTA key no coincide, forzamos reset
+    if (hiddenVersion !== DATA_VERSION) {
+        console.warn(`[MockBackend] Version Check for '${key}': ${hiddenVersion} != ${DATA_VERSION}. FORCING RESET.`);
+        localStorage.setItem(`vantra_${key}`, JSON.stringify(defaultData));
+        localStorage.setItem(`vantra_version_${key}`, DATA_VERSION);
+        return defaultData;
+    }
+
+    // Si no hay persistencia, guardamos y retornamos default
+    if (!stored) {
+        console.log(`[MockBackend] Init '${key}' -> Saving ${defaultData.length} items.`);
+        localStorage.setItem(`vantra_${key}`, JSON.stringify(defaultData));
+        localStorage.setItem(`vantra_version_${key}`, DATA_VERSION);
+        return defaultData;
+    }
+
+    try {
+        const parsedData = JSON.parse(stored);
+
+        if (!Array.isArray(parsedData)) {
+            console.error(`[MockBackend] Data for '${key}' is broken. Resetting.`);
+            localStorage.setItem(`vantra_${key}`, JSON.stringify(defaultData));
+            localStorage.setItem(`vantra_version_${key}`, DATA_VERSION);
+            return defaultData;
+        }
+
+        console.log(`[MockBackend] Loaded '${key}' (${parsedData.length} items) from Persistence.`);
+        return parsedData;
+
+    } catch (e) {
+        console.warn(`[MockBackend] Error loading '${key}'. Resetting.`, e);
+        localStorage.setItem(`vantra_${key}`, JSON.stringify(defaultData));
+        localStorage.setItem(`vantra_version_${key}`, DATA_VERSION);
+        return defaultData;
+    }
 };
 
 const saveData = (key, data) => {
     localStorage.setItem(`vantra_${key}`, JSON.stringify(data));
 };
 
-// --- DATA INICIAL (Seed) ---
-const INITIAL_CLIENTS = [
-    {
-        id: "c1",
-        company_name: "Tech Solutions SA", // kept for compatibility if needed, but UI uses 'businessName' sometimes? Check CRMPage.
-        // CRMPage uses: name, businessName, cuit, servicePlan, status, debt.
-        // Let's ensure seed data matches CRMPage expectations nicely.
-        name: "Juan Perez",
-        businessName: "Tech Solutions SA",
-        cuit: "30-71222333-1",
-        email: "admin@techsolutions.com",
-        address: "Av. Corrientes 1234, CABA",
-        status: "active",
-        is_active: true,
-        balance: -150000,
-        debt: 150000, // Explicit debt for UI
-        servicePlan: "Fibra Corporativa 500MB", // Display field
-        tax_condition: "responsable_inscripto" // Default expected for corporate
-    }
-];
+// --- CALCULADOR DE DEUDA/BALANCE ---
+// Helper para asignar deuda realista según estado
+const getBalanceForStatus = (status) => {
+    if (status === 'debtor') return -Math.floor(Math.random() * 100000 + 10000);
+    if (status === 'potential' || status === 'contacted') return 0;
+    return 0; // Active usually 0 or positive if paid
+};
 
-const INITIAL_SERVICES = [
-    { id: "s1", client_id: "c1", name: "Fibra Corporativa 500MB", price: 150000, type: "recurring", startDate: "2024-01-01" },
-    { id: "s2", client_id: "c1", name: "IP Fija Adicional", price: 10000, type: "recurring", startDate: "2024-01-01" }
-];
+// --- GENERADOR DE DATOS (SEED) ---
+const generateMockData = () => {
+    const clients = [];
+    const services = [];
+
+    const names = ["Tech", "Global", "Net", "Fibra", "Data", "Cloud", "Sistemas", "Redes", "Conexión", "Digital"];
+    const suffixes = ["Solutions", "Corp", "Argentina", "S.A.", "S.R.L.", "Group", "Services", "Latam"];
+    const firstNames = ["Juan", "María", "Carlos", "Ana", "Pedro", "Sofía", "Miguel", "Lucía", "Diego", "Valentina"];
+    const lastNames = ["Pérez", "García", "González", "Rodríguez", "López", "Martínez", "Fernández", "Díaz"];
+    const streets = ["Av. Corrientes", "Av. Libertador", "San Martín", "Belgrano", "Rivadavia", "Mitre"];
+    const cities = ["CABA", "Córdoba", "Rosario", "Mendoza", "La Plata"];
+
+    const statuses = ['potential', 'contacted', 'budgeted', 'to_bill', 'billed', 'active', 'debtor'];
+
+    for (let i = 1; i <= 150; i++) {
+        const isCompany = Math.random() > 0.4;
+        let name, businessName, cuit;
+
+        if (isCompany) {
+            businessName = `${names[Math.floor(Math.random() * names.length)]} ${suffixes[Math.floor(Math.random() * suffixes.length)]}`;
+            name = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`; // Contact person
+            cuit = `30-${Math.floor(20000000 + Math.random() * 90000000)}-${Math.floor(Math.random() * 9)}`;
+        } else {
+            name = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
+            businessName = "";
+            cuit = `20-${Math.floor(20000000 + Math.random() * 90000000)}-${Math.floor(Math.random() * 9)}`;
+        }
+
+        const clientId = `c${i}`;
+        // Weighted status probability for variety
+        const status = statuses[Math.floor(Math.random() * statuses.length)];
+        const balance = getBalanceForStatus(status);
+        const debt = balance < 0 ? Math.abs(balance) : 0;
+
+        // Plan assignment
+        const plan = PLANS_CATALOG[Math.floor(Math.random() * PLANS_CATALOG.length)];
+
+        clients.push({
+            id: clientId,
+            name: name,
+            businessName: businessName, // Field expected by UI
+            company_name: businessName || name, // Compat
+            cuit: cuit,
+            tax_id: cuit,
+            email: `contacto@${(businessName || name).toLowerCase().replace(/[^a-z]/g, '')}.com`,
+            address: `${streets[Math.floor(Math.random() * streets.length)]} ${Math.floor(Math.random() * 5000)}, ${cities[Math.floor(Math.random() * cities.length)]}`,
+            status: status,
+            is_active: ['active', 'billed', 'to_bill'].includes(status),
+            balance: balance,
+            debt: debt,
+            servicePlan: plan.name,
+            tax_condition: isCompany ? "responsable_inscripto" : "consumidor_final",
+            created_at: new Date(2023, 0, 1).toISOString()
+        });
+
+        // Add service if active-ish
+        if (['active', 'billed', 'to_bill', 'debtor'].includes(status)) {
+            services.push({
+                id: `s${i}`,
+                client_id: clientId,
+                name: plan.name,
+                description: plan.desc,
+                price: plan.price,
+                unit_price: plan.price,
+                type: 'recurring',
+                is_recurrent: true,
+                startDate: "2024-01-15"
+            });
+        }
+    }
+
+    return { clients, services };
+};
+
+const { clients: MOCK_CLIENTS_GENERATED, services: MOCK_SERVICES_GENERATED } = generateMockData();
+
+console.log(`[DEBUG] MOCK BACKEND DATA GENERATED: ${MOCK_CLIENTS_GENERATED.length} Clients, ${MOCK_SERVICES_GENERATED.length} Services.`);
+
+const INITIAL_CLIENTS = MOCK_CLIENTS_GENERATED;
+const INITIAL_SERVICES = MOCK_SERVICES_GENERATED;
+const INITIAL_CATALOG = PLANS_CATALOG.map(p => ({
+    ...p,
+    createdAt: new Date().toISOString()
+}));
 
 export const mockBackend = {
     // === CLIENTES ===
@@ -157,7 +272,7 @@ export const mockBackend = {
         // Fallback to initial hardcoded catalog if empty, or just return empty?
         // Ideally we should import mockServicesCatalog here for seeding, but to avoid circular deps or complexity, 
         // let's assume the UI handles seeding or we just return what's in localstorage.
-        return loadData('catalog', []);
+        return loadData('catalog', INITIAL_CATALOG);
     },
 
     createService: async (serviceData) => {
@@ -206,4 +321,3 @@ export const mockBackend = {
         ];
     }
 };
-

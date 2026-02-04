@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Repeat, Zap, FileText, Edit, Download, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -10,13 +10,17 @@ import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../../billing/components/InvoicePDF';
 import { InvoicePreviewModal } from '../../billing/components/InvoicePreviewModal';
 import { CreateClientModal } from '../components/CreateClientModal';
+import { toast } from 'sonner';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { Skeleton } from '../../../components/ui/Skeleton';
+import { Repeat, Zap, FileX2 } from 'lucide-react';
 
 export default function ClientDetailPage() {
     const { id } = useParams();
     const [client, setClient] = useState(null);
     const [services, setServices] = useState([]);
-    const [invoices, setInvoices] = useState([]); // New: Invoices State
-    const [statuses, setStatuses] = useState([]); // Loaded from backend
+    const [invoices, setInvoices] = useState([]);
+    const [statuses, setStatuses] = useState([]);
     const [isBudgetManagerOpen, setIsBudgetManagerOpen] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -51,36 +55,47 @@ export default function ClientDetailPage() {
                 setStatuses(cols);
             } catch (error) {
                 console.error("Error loading client details", error);
+                toast.error("Error al cargar los datos del cliente");
             }
         };
-        load();
+
+        // Simulating a bit of delay to show skeleton (optional, can be removed)
+        setTimeout(load, 500);
     }, [id]);
 
     // Handle Budget Changes (Smart Save: Add/Delete)
     const handleSaveBudget = async (newActiveServices) => {
         if (!client) return;
 
-        // 1. Identify Added Items (Those that don't exist in current services or have temp ID)
-        const added = newActiveServices.filter(n => !services.find(o => o.id === n.id));
+        const promise = async () => {
+            // 1. Identify Added Items (Those that don't exist in current services or have temp ID)
+            const added = newActiveServices.filter(n => !services.find(o => o.id === n.id));
 
-        // 2. Identify Deleted Items
-        const deleted = services.filter(o => !newActiveServices.find(n => n.id === o.id));
+            // 2. Identify Deleted Items
+            const deleted = services.filter(o => !newActiveServices.find(n => n.id === o.id));
 
-        // Process Adds
-        for (const item of added) {
-            const { id: tempId, ...rest } = item;
-            await mockBackend.addClientService({ ...rest, client_id: client.id });
-        }
+            // Process Adds
+            for (const item of added) {
+                const { id: tempId, ...rest } = item;
+                await mockBackend.addClientService({ ...rest, client_id: client.id });
+            }
 
-        // Process Deletes
-        for (const item of deleted) {
-            await mockBackend.deleteClientService(item.id);
-        }
+            // Process Deletes
+            for (const item of deleted) {
+                await mockBackend.deleteClientService(item.id);
+            }
 
-        // Reload to sync
-        const updatedServices = await mockBackend.getClientServices(client.id);
-        setServices(updatedServices);
-        setIsBudgetManagerOpen(false);
+            // Reload to sync
+            const updatedServices = await mockBackend.getClientServices(client.id);
+            setServices(updatedServices);
+            setIsBudgetManagerOpen(false);
+        };
+
+        toast.promise(promise(), {
+            loading: 'Actualizando presupuesto...',
+            success: 'Presupuesto actualizado correctamente',
+            error: 'Error al actualizar el presupuesto'
+        });
     };
 
     const handleOpenPreview = () => {
@@ -93,8 +108,7 @@ export default function ClientDetailPage() {
     };
 
     const handleDownloadExisting = async (invoiceData) => {
-        // Re-generate PDF for existing invoice
-        try {
+        const promise = async () => {
             const blob = await pdf(
                 <InvoicePDF
                     client={client}
@@ -114,14 +128,18 @@ export default function ClientDetailPage() {
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error("Error downloading existing pdf", error);
-        }
+        };
+
+        toast.promise(promise(), {
+            loading: 'Preparando descarga...',
+            success: 'Descarga iniciada',
+            error: 'Error al descargar la factura'
+        });
     };
 
     const handleConfirmInvoice = async (invoiceDataArg) => {
         setIsGenerating(true);
-        try {
+        const promise = async () => {
             // 1. Save to Backend (Mock)
             const invoiceData = {
                 number: invoiceDataArg.number,
@@ -165,12 +183,14 @@ export default function ClientDetailPage() {
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
+        };
 
-        } catch (error) {
-            console.error("Error generating invoice:", error);
-        } finally {
-            setIsGenerating(false);
-        }
+        toast.promise(promise(), {
+            loading: 'Generando factura...',
+            success: 'Factura generada exitosamente',
+            error: 'Error al generar la factura',
+            finally: () => setIsGenerating(false)
+        });
     };
 
     const handleToggleStatus = async (e, invoice) => {
@@ -178,30 +198,66 @@ export default function ClientDetailPage() {
         const newStatus = invoice.status === 'pending' ? 'paid' : 'pending';
 
         // Optimistic Update
+        const oldInvoices = [...invoices];
         setInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, status: newStatus } : inv));
 
-        try {
-            await mockBackend.updateInvoiceStatus(invoice.id, newStatus);
-        } catch (error) {
-            console.error("Error updating status", error);
-            // Revert on error
-            setInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, status: invoice.status } : inv));
-        }
+        const promise = mockBackend.updateInvoiceStatus(invoice.id, newStatus);
+
+        toast.promise(promise, {
+            loading: 'Actualizando estado...',
+            success: 'Estado actualizado',
+            error: (err) => {
+                // Revert on error
+                setInvoices(oldInvoices);
+                return 'Error al actualizar el estado';
+            }
+        });
     };
 
     const handleUpdateClient = async (updatedData) => {
-        try {
+        const promise = async () => {
             // UpdatedData comes from Modal with ID inside
             const saved = await mockBackend.updateClient(client.id, updatedData);
             setClient(saved);
-        } catch (error) {
-            console.error("Error updating client", error);
-        }
+        };
+
+        toast.promise(promise(), {
+            loading: 'Guardando cambios...',
+            success: 'Cliente actualizado correctamente',
+            error: 'Error al actualizar el cliente'
+        });
     };
 
     if (!client) return (
-        <div className="flex h-screen items-center justify-center">
-            <div className="text-slate-500 animate-pulse">Cargando datos del cliente...</div>
+        <div className="space-y-6 pb-20 animate-in fade-in duration-300">
+            {/* Header Skeleton */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
+                <div className="flex items-center gap-4">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="space-y-2">
+                        <Skeleton className="h-8 w-64" />
+                        <Skeleton className="h-4 w-32" />
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <Skeleton className="h-10 w-32" />
+                    <Skeleton className="h-10 w-40" />
+                </div>
+            </div>
+
+            {/* Grid Skeleton */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                <div className="space-y-6">
+                    <Skeleton className="h-64 w-full rounded-xl" />
+                </div>
+                <div className="lg:col-span-2 space-y-8">
+                    <Skeleton className="h-48 w-full rounded-xl" />
+                    <div className="space-y-4">
+                        <Skeleton className="h-8 w-48" />
+                        <Skeleton className="h-64 w-full rounded-xl" />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 
@@ -378,22 +434,22 @@ export default function ClientDetailPage() {
                         </div>
 
                         <Card className="border-slate-200 shadow-sm overflow-hidden bg-white">
-                            <div className="overflow-x-auto w-full">
-                                <table className="w-full text-sm text-left whitespace-nowrap">
-                                    <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
-                                        <tr>
-                                            <th className="px-6 py-3 text-xs uppercase tracking-wide">Fecha</th>
-                                            <th className="px-6 py-3 text-xs uppercase tracking-wide">Comprobante</th>
-                                            <th className="px-6 py-3 text-xs uppercase tracking-wide">Descripción</th>
-                                            <th className="px-6 py-3 text-xs uppercase tracking-wide text-center">Estado</th>
-                                            <th className="px-6 py-3 text-xs uppercase tracking-wide text-right">Monto</th>
-                                            <th className="px-6 py-3 text-xs uppercase tracking-wide text-center">Acción</th>
-                                            <th className="px-6 py-3 w-[50px]"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {invoices.length > 0 ? (
-                                            invoices.map((inv) => (
+                            {invoices.length > 0 ? (
+                                <div className="overflow-x-auto w-full">
+                                    <table className="w-full text-sm text-left whitespace-nowrap">
+                                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
+                                            <tr>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide">Fecha</th>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide">Comprobante</th>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide">Descripción</th>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide text-center">Estado</th>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide text-right">Monto</th>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide text-center">Acción</th>
+                                                <th className="px-6 py-3 w-[50px]"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {invoices.map((inv) => (
                                                 <tr
                                                     key={inv.id}
                                                     onClick={() => handleViewInvoice(inv)}
@@ -443,17 +499,18 @@ export default function ClientDetailPage() {
                                                         <Download className="h-4 w-4 text-slate-300 group-hover:text-primary transition-colors" />
                                                     </td>
                                                 </tr>
-                                            ))
-                                        ) : (
-                                            <tr>
-                                                <td colSpan="6" className="py-10 text-center text-slate-400 italic">
-                                                    No hay facturas generadas aún.
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <EmptyState
+                                    icon={FileX2}
+                                    title="Sin comprobantes emitidos"
+                                    description="Este cliente aún no tiene facturas generadas en el sistema. Puedes generar una nueva arriba."
+                                    className="py-12 border-none"
+                                />
+                            )}
                         </Card>
                     </div>
 
