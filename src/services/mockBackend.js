@@ -77,12 +77,10 @@ export const mockBackend = {
 
     // === FACTURAS ===
     createInvoice: async (clientId, invoiceData) => {
-        // invoiceData: { items: [], total: number, date: string, dueDate: string, number: string }
+        // invoiceData: { items: [], total: number, date: string, dueDate: string, number: string, invoiceType: string }
         await new Promise(r => setTimeout(r, 600));
 
-        const clients = loadData('clients', INITIAL_CLIENTS);
-        const clientIndex = clients.findIndex(c => c.id === clientId);
-        if (clientIndex === -1) throw new Error("Client not found");
+        const invoices = loadData('invoices', []); // Load from separate 'vantra_invoices'
 
         const newInvoice = {
             id: uuidv4(),
@@ -92,20 +90,33 @@ export const mockBackend = {
             ...invoiceData
         };
 
-        // Update Client Debt/Balance
-        // Assuming invoice increases debt
-        clients[clientIndex].debt = (clients[clientIndex].debt || 0) + newInvoice.total;
+        invoices.push(newInvoice);
+        saveData('invoices', invoices);
 
-        // Add invoice to client's invoice history (if nested) or separate table
-        // The current ClientDetailPage reads `client.invoices`. 
-        // Let's ensure we update that.
-        if (!clients[clientIndex].invoices) {
-            clients[clientIndex].invoices = [];
-        }
-        clients[clientIndex].invoices.unshift(newInvoice); // Add to top
-
-        saveData('clients', clients);
+        // NOTE: We intentionally DO NOT update client debt/balance here per requirement.
         return newInvoice;
+    },
+
+    getClientInvoices: async (clientId) => {
+        await new Promise(r => setTimeout(r, 300));
+        const invoices = loadData('invoices', []);
+        // Return invoices for this client, sorted by date (newest first)
+        return invoices
+            .filter(inv => inv.clientId.toString() === clientId.toString())
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    },
+
+    updateInvoiceStatus: async (invoiceId, newStatus) => {
+        await new Promise(r => setTimeout(r, 300));
+        const invoices = loadData('invoices', []);
+        const index = invoices.findIndex(inv => inv.id === invoiceId);
+
+        if (index === -1) throw new Error("Invoice not found");
+
+        invoices[index].status = newStatus;
+        saveData('invoices', invoices);
+
+        return invoices[index];
     },
 
     // === SERVICIOS / PRESUPUESTO MATRIZ ===
@@ -140,6 +151,48 @@ export const mockBackend = {
         return true;
     },
 
+    // === CATALOGO DE SERVICIOS (ServicesPage) ===
+    getCatalog: async () => {
+        await new Promise(r => setTimeout(r, 400));
+        // Fallback to initial hardcoded catalog if empty, or just return empty?
+        // Ideally we should import mockServicesCatalog here for seeding, but to avoid circular deps or complexity, 
+        // let's assume the UI handles seeding or we just return what's in localstorage.
+        return loadData('catalog', []);
+    },
+
+    createService: async (serviceData) => {
+        await new Promise(r => setTimeout(r, 500));
+        const catalog = loadData('catalog', []);
+        const newService = {
+            id: uuidv4(),
+            createdAt: new Date().toISOString(),
+            ...serviceData
+        };
+        catalog.push(newService);
+        saveData('catalog', catalog);
+        return newService;
+    },
+
+    updateService: async (id, data) => {
+        await new Promise(r => setTimeout(r, 400));
+        const catalog = loadData('catalog', []);
+        const index = catalog.findIndex(s => s.id === id);
+        if (index === -1) throw new Error("Service not found");
+
+        const updated = { ...catalog[index], ...data };
+        catalog[index] = updated;
+        saveData('catalog', catalog);
+        return updated;
+    },
+
+    deleteService: async (id) => {
+        await new Promise(r => setTimeout(r, 400));
+        let catalog = loadData('catalog', []);
+        catalog = catalog.filter(s => s.id !== id);
+        saveData('catalog', catalog);
+        return true;
+    },
+
     // === METADATA (Statuses/Columns) ===
     getStatuses: async () => {
         // In a real app, this might come from a DB table 'crm_columns'
@@ -153,3 +206,4 @@ export const mockBackend = {
         ];
     }
 };
+

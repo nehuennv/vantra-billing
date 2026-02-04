@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Save, DollarSign, Wifi, Zap, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/Dialog';
 
 const ICONS = [
     { name: 'Wifi', component: Wifi },
@@ -14,43 +15,58 @@ const ICONS = [
     { name: 'Shield', component: Shield },
 ];
 
-export function CreateServiceModal({ isOpen, onClose, onConfirm }) {
+export function CreateServiceModal({ isOpen, onClose, onConfirm, initialData = null }) {
     const [formData, setFormData] = useState({
         name: '',
         price: '',
         description: '',
-        type: 'recurring', // Default
-        icon: 'Wifi' // Default icon
+        type: 'recurring',
+        icon: 'Wifi'
     });
 
-    if (!isOpen) return null;
+    React.useEffect(() => {
+        if (isOpen) {
+            if (initialData) {
+                setFormData({
+                    name: initialData.name,
+                    price: initialData.price,
+                    description: initialData.description || '',
+                    type: initialData.type || 'recurring',
+                    icon: initialData.icon || 'Wifi'
+                });
+            } else {
+                setFormData({
+                    name: '',
+                    price: '',
+                    description: '',
+                    type: 'recurring',
+                    icon: 'Wifi'
+                });
+            }
+        }
+    }, [isOpen, initialData]);
 
     const handleSubmit = () => {
         if (formData.name && formData.price) {
             onConfirm({
                 ...formData,
                 price: parseFloat(formData.price),
-                id: Date.now()
+                id: initialData ? initialData.id : undefined
             });
             onClose();
-            setFormData({ name: '', price: '', description: '', type: 'recurring', icon: 'Wifi' }); // Reset
         }
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 h-[90vh] md:h-auto overflow-y-auto">
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-md h-[90vh] md:h-auto overflow-y-auto">
+                <DialogHeader className="border-b border-slate-100 bg-slate-50/50 px-6 py-4 -mx-6 -mt-6 rounded-t-xl">
+                    <DialogTitle className="font-heading font-bold text-lg text-slate-800">
+                        {initialData ? 'Editar Servicio' : 'Nuevo Servicio'}
+                    </DialogTitle>
+                </DialogHeader>
 
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <h3 className="font-heading font-bold text-lg text-slate-800">Nuevo Servicio</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-                        <X className="h-5 w-5" />
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="p-6 space-y-4">
+                <div className="space-y-4 py-2">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-600">Nombre del Servicio</label>
                         <input
@@ -126,18 +142,17 @@ export function CreateServiceModal({ isOpen, onClose, onConfirm }) {
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <DialogFooter className="bg-slate-50 border-t border-slate-100 -mx-6 -mb-6 px-6 py-4 rounded-b-xl flex justify-end gap-2">
                     <Button variant="ghost" onClick={onClose}>Cancelar</Button>
                     <Button
                         onClick={handleSubmit}
                         disabled={!formData.name || !formData.price}
                         className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
                     >
-                        <Save className="h-4 w-4" /> Guardar Servicio
+                        <Save className="h-4 w-4" /> {initialData ? 'Guardar Cambios' : 'Guardar Servicio'}
                     </Button>
-                </div>
-            </div>
-        </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }

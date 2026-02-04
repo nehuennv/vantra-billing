@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Repeat, Zap, FileText, Edit, Download, User, Mail, Building, FileSpreadsheet, MapPin } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Repeat, Zap, FileText, Edit, Download, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -15,6 +15,7 @@ export default function ClientDetailPage() {
     const { id } = useParams();
     const [client, setClient] = useState(null);
     const [services, setServices] = useState([]);
+    const [invoices, setInvoices] = useState([]); // New: Invoices State
     const [statuses, setStatuses] = useState([]); // Loaded from backend
     const [isBudgetManagerOpen, setIsBudgetManagerOpen] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -39,6 +40,10 @@ export default function ClientDetailPage() {
                 if (found) {
                     const svc = await mockBackend.getClientServices(found.id);
                     setServices(svc);
+
+                    // Load Invoices
+                    const invs = await mockBackend.getClientInvoices(found.id);
+                    setInvoices(invs);
                 }
 
                 // 3. Load Statuses
@@ -129,9 +134,13 @@ export default function ClientDetailPage() {
                 invoiceType: invoiceDataArg.invoiceType // Ensure type is passed
             };
 
-            const newInvoice = await mockBackend.createInvoice(client.id, invoiceData);
+            await mockBackend.createInvoice(client.id, invoiceData);
 
-            // 2. Refresh Client Data (to show new invoice in list and update debt)
+            // 2. Refresh Invoices
+            const updatedInvoices = await mockBackend.getClientInvoices(client.id);
+            setInvoices(updatedInvoices);
+
+            // Refresh Client Data (optional)
             const allClients = await mockBackend.getClients();
             const found = allClients.find(c => c.id.toString() === id.toString());
             setClient(found);
@@ -161,6 +170,22 @@ export default function ClientDetailPage() {
             console.error("Error generating invoice:", error);
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    const handleToggleStatus = async (e, invoice) => {
+        e.stopPropagation(); // Prevent row click
+        const newStatus = invoice.status === 'pending' ? 'paid' : 'pending';
+
+        // Optimistic Update
+        setInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, status: newStatus } : inv));
+
+        try {
+            await mockBackend.updateInvoiceStatus(invoice.id, newStatus);
+        } catch (error) {
+            console.error("Error updating status", error);
+            // Revert on error
+            setInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, status: invoice.status } : inv));
         }
     };
 
@@ -362,12 +387,13 @@ export default function ClientDetailPage() {
                                             <th className="px-6 py-3 text-xs uppercase tracking-wide">Descripción</th>
                                             <th className="px-6 py-3 text-xs uppercase tracking-wide text-center">Estado</th>
                                             <th className="px-6 py-3 text-xs uppercase tracking-wide text-right">Monto</th>
+                                            <th className="px-6 py-3 text-xs uppercase tracking-wide text-center">Acción</th>
                                             <th className="px-6 py-3 w-[50px]"></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {client.invoices && client.invoices.length > 0 ? (
-                                            client.invoices.map((inv) => (
+                                        {invoices.length > 0 ? (
+                                            invoices.map((inv) => (
                                                 <tr
                                                     key={inv.id}
                                                     onClick={() => handleViewInvoice(inv)}
@@ -389,6 +415,29 @@ export default function ClientDetailPage() {
                                                     </td>
                                                     <td className="px-6 py-3 text-right font-bold text-slate-900">
                                                         ${(inv.amount || inv.total || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        {inv.status === 'pending' ? (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={(e) => handleToggleStatus(e, inv)}
+                                                                className="h-7 px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 text-xs font-semibold"
+                                                            >
+                                                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                                                Registrar Pago
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={(e) => handleToggleStatus(e, inv)}
+                                                                className="h-7 px-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 text-xs"
+                                                            >
+                                                                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                                                                Deshacer
+                                                            </Button>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-3 text-center">
                                                         <Download className="h-4 w-4 text-slate-300 group-hover:text-primary transition-colors" />

@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Search, Plus, Trash2, Package, Tag, DollarSign } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../../components/ui/Dialog';
 import { mockServicesCatalog } from '../../../data/mockData';
 
 export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }) {
-    if (!isOpen) return null;
-
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -73,27 +72,21 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] overflow-hidden border border-slate-200 flex flex-col">
-
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-5xl w-full h-[85vh] p-0 overflow-hidden flex flex-col gap-0 border-0">
+                <DialogHeader className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-row items-center justify-between space-y-0">
                     <div>
-                        <h3 className="font-heading font-bold text-lg text-slate-800">
+                        <DialogTitle className="font-heading font-bold text-lg text-slate-800 text-left">
                             {packageToEdit ? 'Editar Presupuesto' : 'Nuevo Presupuesto'}
-                        </h3>
-                        <p className="text-sm text-slate-500">
+                        </DialogTitle>
+                        <DialogDescription className="text-left">
                             {packageToEdit ? `Editando: ${formData.name}` : 'Crea un paquete de servicios'}
-                        </p>
+                        </DialogDescription>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-                        <X className="h-5 w-5" />
-                    </button>
-                </div>
+                    {/* Close button handled by Dialog or we can add explicit one if Dialog doesn't have it by default, but Dialog usually has X or backdrop click */}
+                </DialogHeader>
 
-                {/* Body - Unified View */}
                 <div className="flex-1 flex overflow-hidden">
-
                     {/* LEFT COLUMN: Catalog */}
                     <div className="w-1/3 border-r border-slate-100 flex flex-col bg-slate-50/30">
                         <div className="p-4 border-b border-slate-100">
@@ -127,7 +120,6 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }
 
                     {/* RIGHT COLUMN: Budget Details */}
                     <div className="w-2/3 flex flex-col p-6 overflow-hidden">
-
                         {/* 1. Basic Info */}
                         <div className="space-y-4 mb-6">
                             <div className="grid grid-cols-2 gap-4">
@@ -235,11 +227,10 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }
                                 <Save className="h-4 w-4 mr-2" /> Guardar Presupuesto
                             </Button>
                         </div>
-
                     </div>
                 </div>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 

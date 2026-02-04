@@ -1,12 +1,14 @@
 // src/features/services/pages/ServicesPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
-import { Plus, Zap, Repeat, Trash2, Edit, Search, Package, Wifi, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield, Layers, LayoutGrid } from "lucide-react";
+import { Plus, Zap, Repeat, Trash2, Edit, Search, Package, Wifi, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield, Layers, LayoutGrid, Filter, ArrowUpDown, SlidersHorizontal, ArrowUp, ArrowDown, X } from "lucide-react";
 import { mockServicesCatalog, mockBudgetTemplates } from "../../../data/mockData";
 import { CreateServiceModal } from "../../../components/modals/CreateServiceModal";
 import { CreatePackageModal } from "../components/CreatePackageModal";
+import { ConfirmDeleteModal } from "../../../components/modals/ConfirmDeleteModal";
+import { mockBackend } from "../../../services/mockBackend";
 
 // Mapa de iconos...
 const ICON_MAP = {
@@ -19,30 +21,120 @@ export default function ServicesPage() {
     const [viewMode, setViewMode] = useState('services'); // 'services' | 'budgets'
     const [searchTerm, setSearchTerm] = useState("");
 
+    // --- Options State ---
+    const [sortBy, setSortBy] = useState('name'); // 'name' | 'price'
+    const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
+    const [filterType, setFilterType] = useState('all'); // 'all' | 'recurring' | 'one_time'
+    const [isGrouped, setIsGrouped] = useState(false);
+
     // Modals
     const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
     const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
-    const [packageToEdit, setPackageToEdit] = useState(null); // Estado para editar
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+    // Editing / Deleting State
+    const [packageToEdit, setPackageToEdit] = useState(null);
+    const [serviceToEdit, setServiceToEdit] = useState(null);
+    const [itemToDelete, setItemToDelete] = useState(null); // { id, type: 'service'|'package', name }
 
     // Data State
-    const [services, setServices] = useState(mockServicesCatalog);
+    const [services, setServices] = useState([]);
     const [budgets, setBudgets] = useState(mockBudgetTemplates || []);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // --- Handlers ---
-    const handleCreateService = (newService) => setServices([...services, newService]);
+    // Initial Load
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const catalog = await mockBackend.getCatalog();
+                if (catalog && catalog.length > 0) {
+                    setServices(catalog);
+                } else {
+                    // Seed if empty for demo
+                    setServices(mockServicesCatalog);
+                    // Optionally push to backend here? For now just use local state if backend empty
+                }
+            } catch (err) {
+                console.error("Error loading catalog", err);
+                setServices(mockServicesCatalog); // Fallback
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        load();
+    }, []);
 
-    // Unificamos crear/editar Presupuesto
+    // --- Service Handlers ---
+    const handleSaveService = async (serviceData) => {
+        if (serviceData.id && services.some(s => s.id === serviceData.id)) {
+            // EDIT
+            try {
+                // If it's a seed item (string ID from mockData) vs uuid from backend
+                // If backend has it, we update backend. If it's local only (seed), we just update local state
+                // unless we force backend syncing.
+                // Let's try to update backend first.
+                try {
+                    await mockBackend.updateService(serviceData.id, serviceData);
+                } catch (e) {
+                    // If not found in backend (because it was seed data), we might want to create it?
+                    // Or just ignore backend error and update local state for demo.
+                    console.warn("Backend update failed (maybe seed data):", e);
+                }
+
+                setServices(prev => prev.map(s => s.id === serviceData.id ? { ...s, ...serviceData } : s));
+            } catch (error) {
+                console.error("Error updating service", error);
+            }
+        } else {
+            // CREATE
+            try {
+                const newSvc = await mockBackend.createService(serviceData);
+                setServices(prev => [...prev, newSvc]);
+            } catch (error) {
+                console.error("Error creating service", error);
+            }
+        }
+        setServiceToEdit(null);
+    };
+
+    const handleEditService = (service) => {
+        setServiceToEdit(service);
+        setIsServiceModalOpen(true);
+    };
+
+    const handleDeleteClick = (item, type) => {
+        setItemToDelete({ id: item.id, type, name: item.name });
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+
+        if (itemToDelete.type === 'service') {
+            try {
+                await mockBackend.deleteService(itemToDelete.id);
+            } catch (e) {
+                console.warn("Backend delete warn:", e);
+            }
+            setServices(prev => prev.filter(s => s.id !== itemToDelete.id));
+        } else {
+            // Budget/Package deletion
+            setBudgets(prev => prev.filter(b => b.id !== itemToDelete.id));
+        }
+        setIsDeleteModalOpen(false);
+        setItemToDelete(null);
+    };
+
+    // --- Package Handlers ---
     const handleSavePackage = (savedPackage) => {
         const exists = budgets.find(b => b.id === savedPackage.id);
         if (exists) {
-            // Update
             setBudgets(budgets.map(b => b.id === savedPackage.id ? savedPackage : b));
         } else {
-            // Create
             setBudgets([...budgets, savedPackage]);
         }
         setIsPackageModalOpen(false);
-        setPackageToEdit(null); // Limpiar
+        setPackageToEdit(null);
     };
 
     const handleEditPackage = (pkg) => {
@@ -50,23 +142,124 @@ export default function ServicesPage() {
         setIsPackageModalOpen(true);
     };
 
-    const handleDeletePackage = (id) => {
-        if (window.confirm("¿Estás seguro de eliminar este presupuesto?")) {
-            setBudgets(budgets.filter(b => b.id !== id));
-        }
-    };
-
     const handleOpenNewPackage = () => {
-        setPackageToEdit(null); // Asegurar que es nuevo
+        setPackageToEdit(null);
         setIsPackageModalOpen(true);
     };
 
-    // --- Filter Logic ---
-    const filteredServices = services.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    const filteredBudgets = budgets.filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const handleOpenNewService = () => {
+        setServiceToEdit(null);
+        setIsServiceModalOpen(true);
+    };
+
+    // --- Processing Logic (Filter/Sort) ---
+    const processData = (data, type) => {
+        let result = [...data];
+
+        // 1. Search
+        if (searchTerm) {
+            result = result.filter(item =>
+                item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        // 2. Filter
+        // NOTE: The modal saves types as 'recurring' or 'unique'.
+        // We must match those values here.
+        if (type === 'services' && filterType !== 'all') {
+            result = result.filter(item => item.type === filterType);
+        }
+
+        // 3. Sort
+        result.sort((a, b) => {
+            const valA = sortBy === 'name' ? a.name : (type === 'services' ? a.price : a.totalPrice);
+            const valB = sortBy === 'name' ? b.name : (type === 'services' ? b.price : b.totalPrice);
+
+            if (sortBy === 'name') {
+                return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else {
+                return sortOrder === 'asc' ? valA - valB : valB - valA;
+            }
+        });
+
+        return result;
+    };
+
+    const processedServices = processData(services, 'services');
+    const processedBudgets = processData(budgets, 'budgets');
+
+    // Grouping helper
+    const getGroupedServices = () => {
+        return {
+            recurring: processedServices.filter(s => s.type === 'recurring'),
+            one_time: processedServices.filter(s => s.type === 'unique') // Fixed: 'unique' per modal logic
+        };
+    };
+
+    const toggleSortOrder = () => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+
+    // Reset Filters Utility
+    const clearFilters = () => {
+        setSearchTerm("");
+        setSortBy('name');
+        setSortOrder('asc');
+        setFilterType('all');
+        setIsGrouped(false);
+    };
+
+    // --- RENDER HELPERS ---
+    const renderServiceCard = (service) => {
+        const IconComponent = ICON_MAP[service.icon] || (service.type === 'recurring' ? Repeat : Zap);
+        return (
+            <Card key={service.id} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
+                <CardHeader className="pb-3 pt-5 flex flex-row items-start justify-between space-y-0">
+                    <div className={`p-2.5 rounded-xl transition-colors ${service.type === 'recurring' ? 'bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground' : 'bg-sky-50 text-sky-600 group-hover:bg-sky-500 group-hover:text-white'}`}>
+                        <IconComponent className="h-6 w-6" />
+                    </div>
+                    <Badge variant="outline" className={`font-medium ${service.type === 'recurring' ? 'border-primary/20 text-primary bg-primary/5' : 'border-sky-100 text-sky-700 bg-sky-50/50'}`}>
+                        {service.type === 'recurring' ? 'Suscripción' : 'Pago Único'}
+                    </Badge>
+                </CardHeader>
+                <CardContent>
+                    <h3 className="font-heading font-bold text-lg text-slate-900 mb-1 group-hover:text-primary transition-colors">{service.name}</h3>
+                    <p className="text-sm text-slate-500 mb-6 h-10 line-clamp-2 leading-relaxed">{service.description}</p>
+                    <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
+                        <div>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Precio Base</p>
+                            <div className="flex items-baseline gap-1">
+                                <p className="text-2xl font-bold text-slate-900 font-heading">${service.price.toLocaleString()}</p>
+                                {service.type === 'recurring' && <span className="text-xs text-slate-400 font-medium">/mes</span>}
+                            </div>
+                        </div>
+                        <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditService(service)}
+                                className="h-8 w-8 p-0 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg"
+                                title="Editar"
+                            >
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteClick(service, 'service')}
+                                className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                                title="Eliminar"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header Principal */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -82,13 +275,13 @@ export default function ServicesPage() {
                     {/* View Switcher */}
                     <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
                         <button
-                            onClick={() => setViewMode('services')}
+                            onClick={() => { setViewMode('services'); setIsGrouped(false); }}
                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'services' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             <LayoutGrid className="h-4 w-4" /> Servicios
                         </button>
                         <button
-                            onClick={() => setViewMode('budgets')}
+                            onClick={() => { setViewMode('budgets'); setIsGrouped(false); }}
                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'budgets' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             <Layers className="h-4 w-4" /> Presupuestos
@@ -97,7 +290,7 @@ export default function ServicesPage() {
 
                     {/* Action Button */}
                     <Button
-                        onClick={() => viewMode === 'services' ? setIsServiceModalOpen(true) : handleOpenNewPackage()}
+                        onClick={() => viewMode === 'services' ? handleOpenNewService() : handleOpenNewPackage()}
                         className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 active:scale-95 transition-all w-[220px] justify-center"
                     >
                         <Plus className="h-4 w-4" /> {viewMode === 'services' ? 'Nuevo Servicio' : 'Nuevo Presupuesto'}
@@ -109,7 +302,8 @@ export default function ServicesPage() {
             <CreateServiceModal
                 isOpen={isServiceModalOpen}
                 onClose={() => setIsServiceModalOpen(false)}
-                onConfirm={handleCreateService}
+                onConfirm={handleSaveService}
+                initialData={serviceToEdit}
             />
             <CreatePackageModal
                 isOpen={isPackageModalOpen}
@@ -117,72 +311,158 @@ export default function ServicesPage() {
                 onConfirm={handleSavePackage}
                 packageToEdit={packageToEdit}
             />
+            <ConfirmDeleteModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                entityName={itemToDelete?.name}
+                entityType={itemToDelete?.type === 'service' ? 'Servicio' : 'Presupuesto'}
+            />
 
-            {/* Search Bar */}
+            {/* --- TOOLBAR: SEARCH & FILTERS --- */}
             <Card className="border-none shadow-sm bg-white/80 backdrop-blur border border-slate-200/50">
-                <CardContent className="p-4">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <CardContent className="p-4 flex flex-col lg:flex-row gap-4 justify-between items-center">
+
+                    {/* Search */}
+                    <div className="relative w-full lg:w-1/3">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                         <input
                             type="text"
                             placeholder={viewMode === 'services' ? "Buscar servicio..." : "Buscar presupuesto..."}
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm transition-all outline-none"
+                            className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm transition-all outline-none"
+                            value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
+                        {searchTerm && (
+                            <button onClick={() => setSearchTerm("")} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Filters & Sort */}
+                    <div className="flex gap-3 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 items-center">
+                        {/* Sort */}
+                        <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1 border border-slate-200">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={toggleSortOrder}
+                                className="h-8 px-2 text-slate-500 hover:text-slate-800"
+                            >
+                                {sortOrder === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
+                            </Button>
+                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                            <select
+                                className="bg-transparent border-none text-sm text-slate-600 font-medium focus:ring-0 cursor-pointer py-1 pl-1 pr-6"
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                            >
+                                <option value="name">Nombre</option>
+                                <option value="price">Precio</option>
+                            </select>
+                        </div>
+
+                        {/* Filter (Only Services) */}
+                        {viewMode === 'services' && (
+                            <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-1 border border-slate-200 px-3">
+                                <Filter className="h-3.5 w-3.5 text-slate-400" />
+                                <select
+                                    className="bg-transparent border-none text-sm text-slate-600 font-medium focus:ring-0 cursor-pointer py-1"
+                                    value={filterType}
+                                    onChange={(e) => setFilterType(e.target.value)}
+                                >
+                                    <option value="all">Todos los Tipos</option>
+                                    <option value="recurring">Recurrentes</option>
+                                    <option value="unique">Pago Único</option>
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Group Toggle (Only Services) */}
+                        {viewMode === 'services' && (
+                            <Button
+                                variant={isGrouped ? "secondary" : "ghost"}
+                                size="sm"
+                                onClick={() => setIsGrouped(!isGrouped)}
+                                className={`gap-2 h-10 border ${isGrouped ? 'bg-primary/10 text-primary border-primary/20' : 'border-slate-200 text-slate-500'}`}
+                            >
+                                <LayoutGrid className="h-4 w-4" />
+                                <span className="hidden sm:inline">Agrupar</span>
+                            </Button>
+                        )}
+
+                        {(searchTerm || filterType !== 'all' || isGrouped || sortBy !== 'name' || sortOrder !== 'asc') && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={clearFilters}
+                                className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 px-2 h-10"
+                                title="Limpiar Filtros"
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        )}
                     </div>
                 </CardContent>
             </Card>
 
             {/* --- CONTENT GRID --- */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {viewMode === 'services' && (
+                isGrouped ? (
+                    // GROUPED VIEW
+                    <div className="space-y-8">
+                        {/* Recurring Section */}
+                        {getGroupedServices().recurring.length > 0 && (
+                            <div className="space-y-4">
+                                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b border-slate-200 pb-2">
+                                    <Repeat className="h-5 w-5 text-primary" /> Suscripciones Recurrentes
+                                    <Badge variant="secondary" className="ml-auto">{getGroupedServices().recurring.length}</Badge>
+                                </h2>
+                                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                                    {getGroupedServices().recurring.map(renderServiceCard)}
+                                </div>
+                            </div>
+                        )}
 
-                {/* 1. VIEW MODE: SERVICES */}
-                {viewMode === 'services' && (
-                    filteredServices.length > 0 ? (
-                        filteredServices.map((service) => {
-                            const IconComponent = ICON_MAP[service.icon] || (service.type === 'recurring' ? Repeat : Zap);
-                            return (
-                                <Card key={service.id} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
-                                    <CardHeader className="pb-3 pt-5 flex flex-row items-start justify-between space-y-0">
-                                        <div className={`p-2.5 rounded-xl transition-colors ${service.type === 'recurring' ? 'bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground' : 'bg-sky-50 text-sky-600 group-hover:bg-sky-500 group-hover:text-white'}`}>
-                                            <IconComponent className="h-6 w-6" />
-                                        </div>
-                                        <Badge variant="outline" className={`font-medium ${service.type === 'recurring' ? 'border-primary/20 text-primary bg-primary/5' : 'border-sky-100 text-sky-700 bg-sky-50/50'}`}>
-                                            {service.type === 'recurring' ? 'Suscripción' : 'Pago Único'}
-                                        </Badge>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <h3 className="font-heading font-bold text-lg text-slate-900 mb-1 group-hover:text-primary transition-colors">{service.name}</h3>
-                                        <p className="text-sm text-slate-500 mb-6 h-10 line-clamp-2 leading-relaxed">{service.description}</p>
-                                        <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
-                                            <div>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Precio Base</p>
-                                                <div className="flex items-baseline gap-1">
-                                                    <p className="text-2xl font-bold text-slate-900 font-heading">${service.price.toLocaleString()}</p>
-                                                    {service.type === 'recurring' && <span className="text-xs text-slate-400 font-medium">/mes</span>}
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg"><Edit className="h-4 w-4" /></Button>
-                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 className="h-4 w-4" /></Button>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })
-                    ) : (
-                        <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
-                            <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mb-4"><Package className="h-8 w-8 text-slate-300" /></div>
-                            <p className="text-lg font-medium text-slate-600">No se encontraron servicios</p>
-                        </div>
-                    )
-                )}
+                        {/* One Time Section */}
+                        {getGroupedServices().one_time.length > 0 && (
+                            <div className="space-y-4">
+                                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b border-slate-200 pb-2">
+                                    <Zap className="h-5 w-5 text-sky-500" /> Pagos Únicos
+                                    <Badge variant="secondary" className="ml-auto">{getGroupedServices().one_time.length}</Badge>
+                                </h2>
+                                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                                    {getGroupedServices().one_time.map(renderServiceCard)}
+                                </div>
+                            </div>
+                        )}
 
-                {/* 2. VIEW MODE: BUDGETS (PACKS) */}
-                {viewMode === 'budgets' && (
-                    filteredBudgets.length > 0 ? (
-                        filteredBudgets.map((budget) => (
+                        {getGroupedServices().recurring.length === 0 && getGroupedServices().one_time.length === 0 && (
+                            <div className="py-12 flex flex-col items-center justify-center text-slate-400">
+                                <p>No se encontraron servicios con los filtros actuales.</p>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    // NORMAL GRID VIEW
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {processedServices.length > 0 ? (
+                            processedServices.map(renderServiceCard)
+                        ) : (
+                            <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
+                                <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mb-4"><Package className="h-8 w-8 text-slate-300" /></div>
+                                <p className="text-lg font-medium text-slate-600">No se encontraron servicios</p>
+                            </div>
+                        )}
+                    </div>
+                )
+            )}
+
+            {viewMode === 'budgets' && (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {processedBudgets.length > 0 ? (
+                        processedBudgets.map((budget) => (
                             <Card key={budget.id} className="group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden flex flex-col">
                                 <CardHeader className="pb-3 pt-5 bg-slate-50/50 border-b border-slate-100">
                                     <div className="flex justify-between items-start mb-2">
@@ -237,7 +517,7 @@ export default function ServicesPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="text-slate-400 hover:text-rose-600"
-                                                onClick={() => handleDeletePackage(budget.id)}
+                                                onClick={() => handleDeleteClick(budget, 'presupuesto')}
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
@@ -260,10 +540,9 @@ export default function ServicesPage() {
                             <p className="text-lg font-medium text-slate-600">No hay presupuestos creados</p>
                             <Button variant="link" onClick={() => handleOpenNewPackage()} className="text-primary">Crear mi primer presupuesto</Button>
                         </div>
-                    )
-                )}
-
-            </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
