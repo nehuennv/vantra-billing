@@ -36,3 +36,12 @@ export function CardTitle({ className, ...props }) {
 export function CardContent({ className, ...props }) {
     return <div className={cn("p-6 pt-0", className)} {...props} />;
 }
+
+export function CardDescription({ className, ...props }) {
+    return (
+        <p
+            className={cn("text-sm text-slate-500", className)}
+            {...props}
+        />
+    );
+}

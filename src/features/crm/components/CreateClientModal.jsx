@@ -6,14 +6,39 @@ import { Label } from "../../../components/ui/Label"; // Assuming Label componen
 import { Plus, X } from "lucide-react";
 import { Badge } from "../../../components/ui/Badge";
 
-export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAddColumn }) {
+export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAddColumn, initialData = null, isEditing = false }) {
     const [formData, setFormData] = useState({
         name: '',
         businessName: '',
         cuit: '',
         email: '',
-        status: 'potential' // Default
+        status: 'potential', // Default
+        tax_condition: 'consumidor_final'
     });
+
+    // Load initial data if editing
+    React.useEffect(() => {
+        if (isOpen && isEditing && initialData) {
+            setFormData({
+                name: initialData.name || '',
+                businessName: initialData.businessName || initialData.company_name || '',
+                cuit: initialData.cuit || initialData.tax_id || '',
+                email: initialData.email || initialData.email_billing || '',
+                status: initialData.status || 'potential',
+                tax_condition: initialData.tax_condition || 'consumidor_final'
+            });
+        } else if (isOpen && !isEditing) {
+            // Reset if opening in create mode
+            setFormData({
+                name: '',
+                businessName: '',
+                cuit: '',
+                email: '',
+                status: 'potential',
+                tax_condition: 'consumidor_final'
+            });
+        }
+    }, [isOpen, isEditing, initialData]);
 
     const [isAddingStatus, setIsAddingStatus] = useState(false);
     const [newStatusName, setNewStatusName] = useState("");
@@ -34,22 +59,24 @@ export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAdd
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        // Pass data back
         onAddClient({
-            id: Date.now().toString(), // Mock ID
             ...formData,
-            debt: 0,
-            servicePlan: 'Consultoría Inicial' // Default for now
+            // If editing, we preserve existing ID in the parent handler or here if needed, 
+            // but 'onAddClient' (which we might rename to onSave) will handle it.
+            // If creating, we mock ID here or in parent. Let's send raw data + id if editing.
+            id: isEditing ? initialData.id : Date.now().toString(),
+            debt: isEditing ? initialData.debt : 0,
+            servicePlan: isEditing ? initialData.servicePlan : 'Consultoría Inicial'
         });
         onClose();
-        // Reset form
-        setFormData({ name: '', businessName: '', cuit: '', email: '', status: 'potential' });
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                    <DialogTitle>Nuevo Cliente</DialogTitle>
+                    <DialogTitle>{isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
@@ -101,6 +128,24 @@ export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAdd
                         </div>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="tax_condition">Condición de IVA</Label>
+                            <select
+                                id="tax_condition"
+                                name="tax_condition"
+                                value={formData.tax_condition || 'consumidor_final'}
+                                onChange={handleChange}
+                                className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                            >
+                                <option value="consumidor_final">Consumidor Final</option>
+                                <option value="responsable_inscripto">Responsable Inscripto</option>
+                                <option value="monotributo">Monotributo</option>
+                                <option value="exento">Exento</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div className="space-y-2">
                         <Label>Estado (Columna Kanban)</Label>
                         {!isAddingStatus ? (
@@ -143,7 +188,7 @@ export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAdd
 
                     <DialogFooter className="pt-4">
                         <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-                        <Button type="submit" className="bg-primary hover:bg-primary/90">Guardar Cliente</Button>
+                        <Button type="submit" className="bg-primary hover:bg-primary/90">{isEditing ? 'Guardar Cambios' : 'Guardar Cliente'}</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

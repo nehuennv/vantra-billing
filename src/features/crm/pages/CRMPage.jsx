@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Plus, Search, Eye, UserX, LayoutGrid, List } from "lucide-react";
 import { ClientKanbanBoard } from "../components/ClientKanbanBoard";
-import { mockClients } from "../../../data/mockData";
+import { mockBackend } from "../../../services/mockBackend";
 import { CreateClientModal } from "../components/CreateClientModal";
 
 const DEFAULT_COLUMNS = [
@@ -21,19 +21,40 @@ export default function CRMPage() {
     const [viewMode, setViewMode] = useState('list'); // 'list' | 'kanban'
 
     // Lifted State
-    const [clients, setClients] = useState(mockClients);
+    const [clients, setClients] = useState([]);
     const [columns, setColumns] = useState(DEFAULT_COLUMNS);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+    // Load Clients
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const data = await mockBackend.getClients();
+                setClients(data);
+            } catch (error) {
+                console.error("Error loading clients", error);
+            }
+        };
+        load();
+    }, []);
+
     // Handlers
-    const handleAddClient = (newClient) => {
-        setClients(prev => [...prev, newClient]);
+    const handleAddClient = async (clientData) => {
+        // clientData comes with a temporary ID from modal, strip it to let backend generate one
+        const { id, ...dataToSave } = clientData;
+        try {
+            const newClient = await mockBackend.createClient(dataToSave);
+            setClients(prev => [...prev, newClient]);
+        } catch (error) {
+            console.error("Error creating client", error);
+        }
     };
 
     const handleTasksChange = (updatedTasks) => {
         // In a real app, this would be an API call
         // Here we just update the local state which serves both List and Kanban
         setClients(updatedTasks);
+        // TODO: Persist status changes to backend if needed
     };
 
     const handleAddColumn = (newColumn) => {
