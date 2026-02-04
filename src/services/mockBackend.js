@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { clientAPI } from './apiClient';
 
 // --- HELPER LOCALSTORAGE ---
 const DATA_VERSION = 'v4-fix-catalog'; // Increment to force reset
@@ -58,136 +59,181 @@ const saveData = (key, data) => {
     localStorage.setItem(`vantra_${key}`, JSON.stringify(data));
 };
 
-// --- CALCULADOR DE DEUDA/BALANCE ---
-// Helper para asignar deuda realista según estado
-const getBalanceForStatus = (status) => {
-    if (status === 'debtor') return -Math.floor(Math.random() * 100000 + 10000);
-    if (status === 'potential' || status === 'contacted') return 0;
-    return 0; // Active usually 0 or positive if paid
+// --- ADAPTER / TRANSFORMER ---
+// Helper to strip HTML but preserve line breaks
+const stripHtml = (html) => {
+    if (!html) return '';
+    // 1. Replace block tags and breaks with newlines
+    let text = html.replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<\/li>/gi, '\n');
+
+    // 2. Strip all other tags
+    text = text.replace(/<[^>]+>/g, '');
+
+    // 3. Decode basic entities (optional, can be expanded)
+    text = text.replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+
+    return text.trim();
+};
+
+// Transforma la respuesta de la API al formato esperado por la UI
+const adaptClient = (apiClient) => {
+    // Definimos balance y deuda
+    const rawBalance = Number(apiClient.current_balance ?? apiClient.saldo ?? apiClient.balance ?? 0);
+    const debt = rawBalance < 0 ? Math.abs(rawBalance) : 0;
+
+    // UI Identity Logic:
+    // User wants Company Name as the main "Name" in the list.
+    const displayName = apiClient.company_name || apiClient.business_name || apiClient.name || 'Sin Nombre';
+
+    return {
+        id: apiClient.id, // UUID
+
+        // Identity
+        name: displayName,
+        businessName: apiClient.company_name || '',
+        contactName: apiClient.nombre || apiClient.contact_name || '', // Persona de contacto
+        dni: apiClient.dni || '',
+        altContact: apiClient.contacto || '', // Contacto alternativo
+
+        // Tax / Legal
+        cuit: apiClient.tax_id || apiClient.cuit || '',
+        tax_id: apiClient.tax_id || '',
+        tax_condition: apiClient.tax_condition || 'consumidor_final',
+        internalCode: apiClient.internal_code || '',
+
+        // Contact
+        email: apiClient.email_billing || apiClient.email || '',
+        phone: apiClient.phone_whatsapp || '',
+        whatsapp: apiClient.phone_whatsapp || '', // Specific field for UI links
+        address: apiClient.address || '',
+
+        // Location
+        city: apiClient.localidad || '',
+        zipCode: apiClient.codigopostal || '',
+        province: apiClient.provincia || '',
+
+        // Categorization
+        category: apiClient.categoria || '',
+        status: apiClient.status || 'potential',
+        is_active: apiClient.is_active ?? ['active', 'billed', 'to_bill'].includes(apiClient.status),
+
+        // Financial
+        balance: rawBalance,
+        debt: debt,
+        servicePlan: apiClient.service_plan || apiClient.plan_name || 'Sin Plan',
+        priceListId: apiClient.idlista,
+        priceListName: apiClient.lista,
+
+        // Notes / Metadata
+        obs: stripHtml(apiClient.observacion || ''),
+        internalObs: stripHtml(apiClient.obsinterna || ''),
+        metadata: apiClient.metadata || {},
+
+        created_at: apiClient.created_at || new Date().toISOString()
+    };
 };
 
 // --- GENERADOR DE DATOS (SEED) ---
 const generateMockData = () => {
+    // MIGRATION: Deshabilitamos generación de clientes porque ahora vienen de la API.
     const clients = [];
-    const services = [];
-
-    const names = ["Tech", "Global", "Net", "Fibra", "Data", "Cloud", "Sistemas", "Redes", "Conexión", "Digital"];
-    const suffixes = ["Solutions", "Corp", "Argentina", "S.A.", "S.R.L.", "Group", "Services", "Latam"];
-    const firstNames = ["Juan", "María", "Carlos", "Ana", "Pedro", "Sofía", "Miguel", "Lucía", "Diego", "Valentina"];
-    const lastNames = ["Pérez", "García", "González", "Rodríguez", "López", "Martínez", "Fernández", "Díaz"];
-    const streets = ["Av. Corrientes", "Av. Libertador", "San Martín", "Belgrano", "Rivadavia", "Mitre"];
-    const cities = ["CABA", "Córdoba", "Rosario", "Mendoza", "La Plata"];
-
-    const statuses = ['potential', 'contacted', 'budgeted', 'to_bill', 'billed', 'active', 'debtor'];
-
-    for (let i = 1; i <= 150; i++) {
-        const isCompany = Math.random() > 0.4;
-        let name, businessName, cuit;
-
-        if (isCompany) {
-            businessName = `${names[Math.floor(Math.random() * names.length)]} ${suffixes[Math.floor(Math.random() * suffixes.length)]}`;
-            name = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`; // Contact person
-            cuit = `30-${Math.floor(20000000 + Math.random() * 90000000)}-${Math.floor(Math.random() * 9)}`;
-        } else {
-            name = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
-            businessName = "";
-            cuit = `20-${Math.floor(20000000 + Math.random() * 90000000)}-${Math.floor(Math.random() * 9)}`;
-        }
-
-        const clientId = `c${i}`;
-        // Weighted status probability for variety
-        const status = statuses[Math.floor(Math.random() * statuses.length)];
-        const balance = getBalanceForStatus(status);
-        const debt = balance < 0 ? Math.abs(balance) : 0;
-
-        // Plan assignment
-        const plan = PLANS_CATALOG[Math.floor(Math.random() * PLANS_CATALOG.length)];
-
-        clients.push({
-            id: clientId,
-            name: name,
-            businessName: businessName, // Field expected by UI
-            company_name: businessName || name, // Compat
-            cuit: cuit,
-            tax_id: cuit,
-            email: `contacto@${(businessName || name).toLowerCase().replace(/[^a-z]/g, '')}.com`,
-            address: `${streets[Math.floor(Math.random() * streets.length)]} ${Math.floor(Math.random() * 5000)}, ${cities[Math.floor(Math.random() * cities.length)]}`,
-            status: status,
-            is_active: ['active', 'billed', 'to_bill'].includes(status),
-            balance: balance,
-            debt: debt,
-            servicePlan: plan.name,
-            tax_condition: isCompany ? "responsable_inscripto" : "consumidor_final",
-            created_at: new Date(2023, 0, 1).toISOString()
-        });
-
-        // Add service if active-ish
-        if (['active', 'billed', 'to_bill', 'debtor'].includes(status)) {
-            services.push({
-                id: `s${i}`,
-                client_id: clientId,
-                name: plan.name,
-                description: plan.desc,
-                price: plan.price,
-                unit_price: plan.price,
-                type: 'recurring',
-                is_recurrent: true,
-                startDate: "2024-01-15"
-            });
-        }
-    }
+    const services = []; // También vaciamos servicios mock iniciales
 
     return { clients, services };
 };
 
 const { clients: MOCK_CLIENTS_GENERATED, services: MOCK_SERVICES_GENERATED } = generateMockData();
 
-console.log(`[DEBUG] MOCK BACKEND DATA GENERATED: ${MOCK_CLIENTS_GENERATED.length} Clients, ${MOCK_SERVICES_GENERATED.length} Services.`);
-
-const INITIAL_CLIENTS = MOCK_CLIENTS_GENERATED;
+// Ya no usamos INITIAL_CLIENTS para persistencia local de clientes
+const INITIAL_CLIENTS = [];
 const INITIAL_SERVICES = MOCK_SERVICES_GENERATED;
 const INITIAL_CATALOG = PLANS_CATALOG.map(p => ({
     ...p,
     createdAt: new Date().toISOString()
 }));
 
+// Mapeo Inverso: UI -> API (para Create/Update)
+const adaptClientForApi = (uiData) => {
+    return {
+        // Obligatorios
+        company_name: uiData.businessName || uiData.company_name, // API requires company_name
+        tax_id: uiData.cuit || uiData.tax_id,
+        email_billing: uiData.email || uiData.email_billing,
+
+        // Opcionales
+        tax_condition: uiData.tax_condition,
+        phone_whatsapp: uiData.phone || uiData.phone_whatsapp,
+        address: uiData.address,
+        localidad: uiData.city,
+        codigopostal: uiData.zipCode,
+        provincia: uiData.province,
+
+        categoria: uiData.category,
+
+        // Contacto
+        nombre: uiData.name || uiData.contactName, // 'nombre' is contact name in API
+        dni: uiData.dni,
+
+        // Status
+        status: uiData.status,
+
+        // Notas
+        obsinterna: uiData.internalObs,
+        // No enviamos observacion pública por ahora si no está en el form, o mapeamos si existiera
+    };
+};
+
 export const mockBackend = {
-    // === CLIENTES ===
+    // === CLIENTES (API REAL via Adapter) ===
     getClients: async () => {
-        await new Promise(r => setTimeout(r, 500));
-        return loadData('clients', INITIAL_CLIENTS);
+        try {
+            // Llamada a API Real: Traemos 100 para evitar paginación inmediata
+            const response = await clientAPI.getAll({ limit: 100 });
+
+            // TRANSFORMACIÓN: { data: [], pagination: {} } -> []
+            const rawList = Array.isArray(response) ? response : (response?.data || []);
+
+            // Adaptamos cada cliente al formato UI
+            return rawList.map(adaptClient);
+
+        } catch (error) {
+            console.error("[MockBackend] Failed to fetch clients from API:", error);
+            // Fallback seguro para no romper UI
+            return [];
+        }
     },
 
-    // Updated createClient to be consistent
+
+
     createClient: async (clientData) => {
-        await new Promise(r => setTimeout(r, 500));
-        const clients = loadData('clients', INITIAL_CLIENTS);
-        const newClient = {
-            id: uuidv4(),
-            created_at: new Date().toISOString(),
-            status: 'potential', // Default status
-            is_active: true,
-            balance: 0,
-            debt: 0,
-            servicePlan: 'Sin Plan',
-            tax_condition: 'consumidor_final', // Default fallback
-            ...clientData
-        };
-        clients.push(newClient);
-        saveData('clients', clients);
-        return newClient;
+        try {
+            const apiBody = adaptClientForApi(clientData);
+            const response = await clientAPI.create(apiBody);
+            // La API debería devolver el objeto creado o { data: object }
+            const rawClient = response.data || response;
+            return adaptClient(rawClient);
+        } catch (error) {
+            console.error("[MockBackend] Failed to create client:", error);
+            throw error;
+        }
     },
 
     updateClient: async (clientId, updates) => {
-        await new Promise(r => setTimeout(r, 400));
-        const clients = loadData('clients', INITIAL_CLIENTS);
-        const index = clients.findIndex(c => c.id === clientId);
-        if (index === -1) throw new Error("Client not found");
-
-        const updatedClient = { ...clients[index], ...updates };
-        clients[index] = updatedClient;
-        saveData('clients', clients);
-        return updatedClient;
+        try {
+            const apiBody = adaptClientForApi(updates);
+            const response = await clientAPI.update(clientId, apiBody);
+            const rawClient = response.data || response;
+            return adaptClient(rawClient);
+        } catch (error) {
+            console.error("[MockBackend] Failed to update client:", error);
+            throw error;
+        }
     },
 
     // === FACTURAS ===
