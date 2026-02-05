@@ -285,6 +285,11 @@ export default function ClientDetailPage() {
                             <Badge variant={client.status === 'active' ? 'success' : 'secondary'} className="uppercase text-[10px] tracking-wider px-2.5 py-0.5">
                                 {client.status}
                             </Badge>
+                            {client.category && (
+                                <Badge variant="outline" className="uppercase text-[10px] tracking-wider px-2.5 py-0.5 border-slate-300 text-slate-500">
+                                    {client.category}
+                                </Badge>
+                            )}
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
                             <span className="bg-slate-100 px-1.5 rounded font-mono text-xs">ID: {client.id.toString().substring(0, 8)}</span>
@@ -323,7 +328,7 @@ export default function ClientDetailPage() {
 
                 {/* --- LEFT COLUMN: CLIENT DATA (1 Col) --- */}
                 <div className="space-y-6">
-                    <Card className="border-slate-200 shadow-sm overflow-hidden h-full">
+                    <Card className="border-slate-200 shadow-sm overflow-hidden">
                         <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4">
                             <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
                                 <User className="h-4 w-4 text-primary" />
@@ -387,28 +392,49 @@ export default function ClientDetailPage() {
                                     <p className="text-sm text-slate-700 text-pretty">
                                         {client.address || 'Sin dirección'}
                                     </p>
-                                    {(client.city || client.province) && (
-                                        <p className="text-xs text-slate-500 mt-1">
+                                    {(client.city || client.province || client.zipCode) && (
+                                        <div className="text-xs text-slate-500 mt-1">
                                             {[client.city, client.province, client.zipCode].filter(Boolean).join(', ')}
-                                        </p>
+                                        </div>
                                     )}
                                 </div>
 
                                 {/* Observaciones Internas (Privado) */}
+                                {/* Observaciones Internas (Privado) - MOVIDO A NUEVA TARJETA */}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Notas y Observaciones */}
+                    {(client.internalObs || client.obs) && (
+                        <Card className="border-slate-200 shadow-sm overflow-hidden">
+                            <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4">
+                                <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-primary" />
+                                    Notas y Observaciones
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-4 space-y-4">
                                 {client.internalObs && (
-                                    <div className="p-4 bg-amber-50/50 hover:bg-amber-50 transition-colors border-t border-amber-100/50">
-                                        <p className="text-xs font-bold text-amber-600 uppercase mb-1 flex items-center gap-2">
-                                            <FileText className="h-3 w-3" /> Notas Internas
-                                        </p>
+                                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-3 text-sm mb-3">
+                                        <div className="font-bold text-xs uppercase mb-1 flex items-center gap-2">
+                                            <FileText className="h-3 w-3" /> Nota Interna (Privada)
+                                        </div>
                                         <div
-                                            className="text-sm text-slate-700 italic prose prose-sm max-w-none prose-p:my-1 prose-strong:text-amber-700"
+                                            className="prose prose-sm max-w-none prose-p:my-1 prose-a:text-amber-900"
                                             dangerouslySetInnerHTML={{ __html: client.internalObs }}
                                         />
                                     </div>
                                 )}
-                            </div>
-                        </CardContent>
-                    </Card>
+                                {client.obs && (
+                                    <div className="text-sm text-slate-600">
+                                        <p className="font-semibold text-xs text-slate-400 uppercase mb-1">Nota Pública</p>
+                                        <p>{client.obs}</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
 
                 {/* --- RIGHT COLUMN: OPERATIONS (2 Cols) --- */}
@@ -600,9 +626,8 @@ export default function ClientDetailPage() {
                     isOpen={isEditClientOpen}
                     onClose={() => setIsEditClientOpen(false)}
                     columns={statuses.length > 0 ? statuses : [{ id: client.status, title: client.status.toUpperCase() }]}
-                    onAddClient={handleUpdateClient}
-                    initialData={client}
-                    isEditing={true}
+                    onUpdate={handleUpdateClient}
+                    clientToEdit={client}
                     onAddColumn={() => { }}
                 />
             )}

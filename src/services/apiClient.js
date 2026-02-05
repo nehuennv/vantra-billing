@@ -53,6 +53,10 @@ export const clientAPI = {
     },
 
     update: (id, data) => {
-        return request(`/v1/clients/${id}`, 'PUT', data); // Assuming standard PUT or PATCH
+        return request(`/v1/clients/${id}`, 'PATCH', data);
+    },
+
+    delete: (id) => {
+        return request(`/v1/clients/${id}`, 'DELETE');
     }
 };

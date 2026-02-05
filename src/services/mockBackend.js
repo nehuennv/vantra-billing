@@ -227,7 +227,9 @@ export const mockBackend = {
     updateClient: async (clientId, updates) => {
         try {
             const apiBody = adaptClientForApi(updates);
+            // PASO 2: Llamar al apiClient real
             const response = await clientAPI.update(clientId, apiBody);
+            // La API devuelve el objeto actualizado
             const rawClient = response.data || response;
             return adaptClient(rawClient);
         } catch (error) {

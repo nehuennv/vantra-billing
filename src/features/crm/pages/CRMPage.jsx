@@ -291,7 +291,7 @@ export default function CRMPage() {
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
                 columns={columns}
-                onAddClient={handleAddClient}
+                onCreate={handleAddClient}
                 onAddColumn={handleAddColumn}
             />
         </div>

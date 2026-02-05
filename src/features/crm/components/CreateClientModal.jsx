@@ -6,7 +6,7 @@ import { Label } from "../../../components/ui/Label";
 import { Textarea } from "../../../components/ui/Textarea"; // Assuming Textarea exists or using Input
 import { Plus, X } from "lucide-react";
 
-export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAddColumn, initialData = null, isEditing = false }) {
+export function CreateClientModal({ isOpen, onClose, columns, onCreate, onUpdate, onAddColumn, clientToEdit = null }) {
     const [formData, setFormData] = useState({
         // Identity
         businessName: '', // Razon Social (company_name) - Required
@@ -36,29 +36,29 @@ export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAdd
     // Load initial data if editing
     React.useEffect(() => {
         if (isOpen) {
-            if (isEditing && initialData) {
+            if (clientToEdit) {
                 setFormData({
-                    businessName: initialData.businessName || initialData.company_name || '',
-                    cuit: initialData.cuit || initialData.tax_id || '',
-                    name: initialData.contactName || initialData.name || '',
-                    dni: initialData.dni || '',
+                    businessName: clientToEdit.businessName || clientToEdit.company_name || '',
+                    cuit: clientToEdit.cuit || clientToEdit.tax_id || '',
+                    name: clientToEdit.contactName || clientToEdit.name || '',
+                    dni: clientToEdit.dni || '',
 
-                    email: initialData.email || initialData.email_billing || '',
-                    phone: initialData.phone || initialData.whatsapp || '',
-                    address: initialData.address || '',
+                    email: clientToEdit.email || clientToEdit.email_billing || '',
+                    phone: clientToEdit.phone || clientToEdit.whatsapp || '',
+                    address: clientToEdit.address || '',
 
-                    city: initialData.city || '',
-                    zipCode: initialData.zipCode || '',
-                    province: initialData.province || '',
+                    city: clientToEdit.city || '',
+                    zipCode: clientToEdit.zipCode || '',
+                    province: clientToEdit.province || '',
 
-                    category: initialData.category || '',
-                    status: initialData.status || 'potential',
-                    tax_condition: initialData.tax_condition || 'responsable_inscripto',
+                    category: clientToEdit.category || '',
+                    status: clientToEdit.status || 'potential',
+                    tax_condition: clientToEdit.tax_condition || 'responsable_inscripto',
 
-                    internalObs: initialData.internalObs || ''
+                    internalObs: clientToEdit.internalObs || ''
                 });
             } else {
-                // Reset for creation
+                // Reset for creation (Clean slate)
                 setFormData({
                     businessName: '',
                     cuit: '',
@@ -77,7 +77,7 @@ export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAdd
                 });
             }
         }
-    }, [isOpen, isEditing, initialData]);
+    }, [isOpen, clientToEdit]);
 
     const [isAddingStatus, setIsAddingStatus] = useState(false);
     const [newStatusName, setNewStatusName] = useState("");
@@ -98,10 +98,16 @@ export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAdd
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onAddClient({
-            ...formData,
-            id: isEditing ? initialData.id : undefined
-        });
+
+        if (clientToEdit) {
+            onUpdate({
+                ...formData,
+                id: clientToEdit.id
+            });
+        } else {
+            onCreate(formData);
+        }
+
         onClose();
     };
 
@@ -109,7 +115,7 @@ export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAdd
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{isEditing ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+                    <DialogTitle>{clientToEdit ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-6 py-4">
@@ -294,7 +300,7 @@ export function CreateClientModal({ isOpen, onClose, columns, onAddClient, onAdd
 
                     <DialogFooter className="pt-2 sticky bottom-0 bg-white border-t mt-4">
                         <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-                        <Button type="submit" className="bg-primary hover:bg-primary/90">{isEditing ? 'Guardar Cambios' : 'Guardar Cliente'}</Button>
+                        <Button type="submit" className="bg-primary hover:bg-primary/90">{clientToEdit ? 'Guardar Cambios' : 'Guardar Cliente'}</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>
