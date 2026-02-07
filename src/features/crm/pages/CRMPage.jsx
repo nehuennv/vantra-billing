@@ -64,7 +64,7 @@ export default function CRMPage() {
         toast.promise(promise(), {
             loading: 'Creando cliente...',
             success: (data) => `Cliente ${data.name} creado exitosamente`,
-            error: 'Error al crear el cliente'
+            error: (err) => err.message || 'Error al crear el cliente'
         });
     };
 

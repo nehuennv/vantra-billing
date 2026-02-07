@@ -8,12 +8,41 @@ import { mockServicesCatalog, mockBudgetTemplates } from "../../../data/mockData
 import { CreateServiceModal } from "../../../components/modals/CreateServiceModal";
 import { CreatePackageModal } from "../components/CreatePackageModal";
 import { ConfirmDeleteModal } from "../../../components/modals/ConfirmDeleteModal";
+
+// API & SERVICES
+import { servicesAPI } from "../../../services/apiClient";
 import { mockBackend } from "../../../services/mockBackend";
 import { toast } from 'sonner';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Skeleton } from '../../../components/ui/Skeleton';
 
-// Mapa de iconos...
+// ------------------- ADAPTERS -------------------
+// API (snake_case) -> UI (camelCase)
+const adaptService = (apiData) => {
+    return {
+        id: apiData.id,
+        name: apiData.name,
+        description: apiData.description,
+        price: Number(apiData.unit_price) || 0, // unit_price -> price
+        type: apiData.service_type,             // service_type -> type
+        isActive: apiData.is_active,            // is_active -> isActive
+        icon: apiData.icon || 'Zap'             // default icon if missing
+    };
+};
+
+// UI (camelCase) -> API (snake_case)
+const adaptServiceToApi = (uiData) => {
+    return {
+        name: uiData.name,
+        description: uiData.description,
+        unit_price: Number(uiData.price),       // price -> unit_price
+        service_type: uiData.type,              // type -> service_type
+        is_active: uiData.isActive ?? true,     // isActive -> is_active
+        icon: uiData.icon
+    };
+};
+
+// Mapa de iconos
 const ICON_MAP = {
     'Wifi': Wifi, 'Zap': Zap, 'Globe': Globe, 'Monitor': Monitor,
     'Smartphone': Smartphone, 'Server': Server, 'Database': Database,
@@ -45,48 +74,63 @@ export default function ServicesPage() {
     const [budgets, setBudgets] = useState(mockBudgetTemplates || []);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Initial Load
+    // Initial Load - REAL API for Services
     useEffect(() => {
-        const load = async () => {
+        const loadServices = async () => {
+            setIsLoading(true);
             try {
-                const catalog = await mockBackend.getCatalog();
-                if (catalog && catalog.length > 0) {
-                    setServices(catalog);
+                // Pedimos limit=100 para traer "todos"
+                const response = await servicesAPI.getAll({ limit: 100 });
+
+                // La API devuelve { status: 'success', data: [...], pagination: {...} }
+                if (response && response.data) {
+                    const adaptedServices = response.data.map(adaptService);
+                    setServices(adaptedServices);
                 } else {
-                    // Seed if empty for demo
-                    setServices(mockServicesCatalog);
+                    setServices([]);
                 }
             } catch (err) {
-                console.error("Error loading catalog", err);
-                setServices(mockServicesCatalog); // Fallback
-                toast.error("Error al cargar el catálogo de servicios");
+                console.error("Error loading services from API", err);
+                toast.error("Error al conectar con el servidor de servicios.");
+                setServices([]);
             } finally {
                 setIsLoading(false);
             }
         };
-        // Simulated delay for Skeleton demo anywhere between 500-1000ms
-        setTimeout(load, 800);
+
+        loadServices();
     }, []);
 
-    // --- Service Handlers ---
+    // --- Service Handlers (REAL API) ---
     const handleSaveService = async (serviceData) => {
+        const payload = adaptServiceToApi(serviceData);
+
+
+
         const promise = async () => {
             if (serviceData.id && services.some(s => s.id === serviceData.id)) {
                 // EDIT
-
-                // If it's a seed item (string ID from mockData) vs uuid from backend
-                // If backend has it, we update backend. If it's local only (seed), we just update local state
+                // Nota: Si el ID es temporal (creado localmente ante fallo), la API fallará. 
+                // Asumimos que si está en la lista tiene ID real del backend o es seed.
                 try {
-                    await mockBackend.updateService(serviceData.id, serviceData);
+                    await servicesAPI.update(serviceData.id, payload);
+                    // Optimistic UI Update
+                    setServices(prev => prev.map(s => s.id === serviceData.id ? { ...s, ...serviceData } : s));
                 } catch (e) {
-                    console.warn("Backend update failed (maybe seed data):", e);
+                    // Si falla la API, intentamos fallback a mock si es data de seed, o lanzamos error
+                    console.warn("API update failed, trying mock fallback", e);
+                    await mockBackend.updateService(serviceData.id, serviceData);
+                    setServices(prev => prev.map(s => s.id === serviceData.id ? { ...s, ...serviceData } : s));
                 }
-
-                setServices(prev => prev.map(s => s.id === serviceData.id ? { ...s, ...serviceData } : s));
             } else {
                 // CREATE
-                const newSvc = await mockBackend.createService(serviceData);
-                setServices(prev => [...prev, newSvc]);
+                const response = await servicesAPI.create(payload);
+                // Si la API devuelve el objeto creado, lo adaptamos y agregamos
+                const newSvc = response && response.data ? adaptService(response.data) : { ...serviceData, id: 'temp-id-' + Date.now() };
+
+                if (response || newSvc) {
+                    setServices(prev => [...prev, newSvc]);
+                }
             }
         };
 
@@ -115,14 +159,17 @@ export default function ServicesPage() {
 
         const promise = async () => {
             if (itemToDelete.type === 'service') {
+                // DELETE SERVICE (API)
                 try {
-                    await mockBackend.deleteService(itemToDelete.id);
+                    await servicesAPI.delete(itemToDelete.id, true);
                 } catch (e) {
-                    console.warn("Backend delete warn:", e);
+                    console.warn("API delete failed, trying mock fallback", e);
+                    // Fallback para datos seed que no existen en backend real
+                    await mockBackend.deleteService(itemToDelete.id);
                 }
                 setServices(prev => prev.filter(s => s.id !== itemToDelete.id));
             } else {
-                // Budget/Package deletion
+                // DELETE BUDGET (MOCK / LOCAL)
                 setBudgets(prev => prev.filter(b => b.id !== itemToDelete.id));
             }
         };
@@ -137,9 +184,8 @@ export default function ServicesPage() {
         setItemToDelete(null);
     };
 
-    // --- Package Handlers ---
+    // --- Package Handlers (MOCK / LOCAL) ---
     const handleSavePackage = (savedPackage) => {
-        // Local only for now as per previous code structure
         const exists = budgets.find(b => b.id === savedPackage.id);
 
         if (exists) {
