@@ -28,6 +28,12 @@ export default function CRMPage() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Filters
+    const [statusFilters, setStatusFilters] = useState({
+        active: true,
+        inactive: false
+    });
+
     // Load Clients
     useEffect(() => {
         const load = async () => {
@@ -87,11 +93,31 @@ export default function CRMPage() {
         }
     };
 
-    // Filter based on search
-    const filteredClients = clients.filter(client =>
-        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.cuit.includes(searchTerm)
-    );
+    // Enhanced Filter Logic
+    const filteredClients = clients.filter(client => {
+        // 1. Status Filter
+        const showActive = statusFilters.active;
+        const showInactive = statusFilters.inactive;
+        // Strict boolean check since we fixed the adapter
+        const isActive = client.is_active === true;
+
+        if (isActive && !showActive) return false;
+        if (!isActive && !showInactive) return false;
+
+        // 2. Search Filter (Deep Search)
+        if (!searchTerm) return true;
+
+        const term = searchTerm.toLowerCase();
+
+        return (
+            (client.name && client.name.toLowerCase().includes(term)) ||
+            (client.businessName && client.businessName.toLowerCase().includes(term)) ||
+            (client.cuit && client.cuit.includes(term)) ||
+            (client.email && client.email.toLowerCase().includes(term)) ||
+            (client.phone && client.phone.includes(term)) ||
+            (client.whatsapp && client.whatsapp.includes(term))
+        );
+    });
 
     // SKELETONS
     const renderListSkeleton = () => (
@@ -165,15 +191,38 @@ export default function CRMPage() {
 
             {/* BARRA DE BÚSQUEDA Y FILTROS */}
             <Card className="border-none shadow-sm bg-white/80 backdrop-blur border border-slate-200/50">
-                <CardContent className="p-4 flex flex-col md:flex-row gap-4">
-                    <div className="relative flex-1">
+                <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center">
+                    <div className="relative flex-1 w-full">
                         <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Buscar por nombre, empresa o CUIT..."
+                            placeholder="Buscar por nombre, empresa, CUIT, teléfono..."
                             className="w-full pl-10 pr-4 py-2.5 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm transition-all outline-none"
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
+                    </div>
+
+                    {/* Status Filters */}
+                    <div className="flex items-center gap-4 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={statusFilters.active}
+                                onChange={(e) => setStatusFilters(prev => ({ ...prev, active: e.target.checked }))}
+                                className="rounded border-slate-300 text-primary focus:ring-primary/20"
+                            />
+                            Activos
+                        </label>
+                        <div className="h-4 w-px bg-slate-200"></div>
+                        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={statusFilters.inactive}
+                                onChange={(e) => setStatusFilters(prev => ({ ...prev, inactive: e.target.checked }))}
+                                className="rounded border-slate-300 text-rose-500 focus:ring-rose-500/20"
+                            />
+                            Inactivos
+                        </label>
                     </div>
                 </CardContent>
             </Card>

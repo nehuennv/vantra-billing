@@ -223,10 +223,10 @@ export default function ServicesPage() {
     };
 
     // --- RENDER HELPERS ---
-    const renderServiceCard = (service) => {
+    const renderServiceCard = (service, index) => {
         const IconComponent = ICON_MAP[service.icon] || (service.type === 'recurring' ? Repeat : Zap);
         return (
-            <Card key={service.id} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
+            <Card key={service.id ? service.id.toString() : `svc-${index}`} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
                 <CardHeader className="pb-3 pt-5 flex flex-row items-start justify-between space-y-0">
                     <div className={`p-2.5 rounded-xl transition-colors ${service.type === 'recurring' ? 'bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground' : 'bg-sky-50 text-sky-600 group-hover:bg-sky-500 group-hover:text-white'}`}>
                         <IconComponent className="h-6 w-6" />
@@ -246,7 +246,7 @@ export default function ServicesPage() {
                                 {service.type === 'recurring' && <span className="text-xs text-slate-400 font-medium">/mes</span>}
                             </div>
                         </div>
-                        <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
+                        <div className="flex gap-1">
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -458,7 +458,7 @@ export default function ServicesPage() {
                                     <Badge variant="secondary" className="ml-auto">{getGroupedServices().recurring.length}</Badge>
                                 </h2>
                                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                                    {getGroupedServices().recurring.map(renderServiceCard)}
+                                    {getGroupedServices().recurring.map((s, i) => renderServiceCard(s, i))}
                                 </div>
                             </div>
                         )}
@@ -471,7 +471,7 @@ export default function ServicesPage() {
                                     <Badge variant="secondary" className="ml-auto">{getGroupedServices().one_time.length}</Badge>
                                 </h2>
                                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                                    {getGroupedServices().one_time.map(renderServiceCard)}
+                                    {getGroupedServices().one_time.map((s, i) => renderServiceCard(s, i))}
                                 </div>
                             </div>
                         )}
@@ -490,7 +490,7 @@ export default function ServicesPage() {
                     // NORMAL GRID VIEW
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {processedServices.length > 0 ? (
-                            processedServices.map(renderServiceCard)
+                            processedServices.map((s, i) => renderServiceCard(s, i))
                         ) : (
                             <div className="col-span-full">
                                 <EmptyState

@@ -11,9 +11,18 @@ import { InvoicePDF } from '../../billing/components/InvoicePDF';
 import { InvoicePreviewModal } from '../../billing/components/InvoicePreviewModal';
 import { CreateClientModal } from '../components/CreateClientModal';
 import { toast } from 'sonner';
+import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
+import { CreateServiceModal } from '../../../components/modals/CreateServiceModal';
+
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Skeleton } from '../../../components/ui/Skeleton';
-import { Repeat, Zap, FileX2 } from 'lucide-react';
+import { Repeat, Zap, FileX2, Trash, Ban, CheckCircle as CheckCircleIcon, Wifi, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield } from 'lucide-react';
+
+const ICON_MAP = {
+    'Wifi': Wifi, 'Zap': Zap, 'Globe': Globe, 'Monitor': Monitor,
+    'Smartphone': Smartphone, 'Server': Server, 'Database': Database,
+    'Cloud': Cloud, 'Shield': Shield,
+};
 
 export default function ClientDetailPage() {
     const { id } = useParams();
@@ -31,6 +40,18 @@ export default function ClientDetailPage() {
 
     // New: State for Editing Client
     const [isEditClientOpen, setIsEditClientOpen] = useState(false);
+
+    // New: State for Deleting/Disabling Client
+    const [deleteModal, setDeleteModal] = useState({
+        isOpen: false,
+        type: null // 'soft' | 'hard'
+    });
+
+
+    // New: State for Editing/Deleting Service
+    const [serviceToEdit, setServiceToEdit] = useState(null);
+    const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+    const [serviceToDelete, setServiceToDelete] = useState(null);
 
     // Initial Load
     useEffect(() => {
@@ -65,23 +86,28 @@ export default function ClientDetailPage() {
 
     // Handle Budget Changes (Smart Save: Add/Delete)
     const handleSaveBudget = async (newActiveServices) => {
+        console.log("handleSaveBudget CALLED", newActiveServices);
         if (!client) return;
 
         const promise = async () => {
             // 1. Identify Added Items (Those that don't exist in current services or have temp ID)
             const added = newActiveServices.filter(n => !services.find(o => o.id === n.id));
+            console.log("Items identified as ADDED:", added);
 
             // 2. Identify Deleted Items
             const deleted = services.filter(o => !newActiveServices.find(n => n.id === o.id));
+            console.log("Items identified as DELETED:", deleted);
 
             // Process Adds
             for (const item of added) {
                 const { id: tempId, ...rest } = item;
+                console.log("Processing Add:", rest);
                 await mockBackend.addClientService({ ...rest, client_id: client.id });
             }
 
             // Process Deletes
             for (const item of deleted) {
+                console.log("Processing Delete:", item.id);
                 await mockBackend.deleteClientService(item.id);
             }
 
@@ -107,32 +133,72 @@ export default function ClientDetailPage() {
         setIsViewModalOpen(true);
     };
 
-    const handleDownloadExisting = async (invoiceData) => {
+    const handleDownloadInvoice = async (invoiceData) => {
         const promise = async () => {
-            const blob = await pdf(
-                <InvoicePDF
-                    client={client}
-                    items={invoiceData.items}
-                    invoiceNumber={invoiceData.number}
-                    issueDate={invoiceData.issueDate}
-                    dueDate={invoiceData.dueDate}
-                    invoiceType={invoiceData.invoiceType}
-                />
-            ).toBlob();
+            try {
+                // 1. Intentar descarga desde el Backend (Blob real)
+                const blob = await mockBackend.downloadInvoicePdf(invoiceData.id);
 
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `factura-${client.company_name?.replace(/\s+/g, '_') || 'cliente'}-${invoiceData.number}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+                // Crear URL del Blob y descargar
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `factura-${client.company_name?.replace(/\s+/g, '_') || 'cliente'}-${invoiceData.number}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error("Fallo descarga backend:", err);
+                toast.error(`Error en servidor (500). Generando copia local...`);
+
+                // 2. Fallback: Generación Cliente-side (si falla backend)
+                // Primero intentamos buscar el detalle completo de la factura para tener los items
+                let fullInvoice = invoiceData;
+                try {
+                    const detail = await mockBackend.getInvoice(invoiceData.id);
+                    if (detail && detail.items && detail.items.length > 0) {
+                        // A veces el backend devuelve items con estructura diferente, normalizamos
+                        const normalizedItems = detail.items.map(i => ({
+                            description: i.description || i.name || 'Servicio',
+                            quantity: Number(i.quantity || 1),
+                            unit_price: Number(i.unit_price || i.price || 0),
+                            total_price: Number(i.total_price || (i.price * (i.quantity || 1)) || 0)
+                        }));
+                        fullInvoice = { ...invoiceData, items: normalizedItems };
+                    } else {
+                        console.warn("La factura no tiene items en el detalle, usando datos de lista.");
+                    }
+                } catch (fetchErr) {
+                    console.warn("No se pudo obtener detalle para fallback, usando datos de lista", fetchErr);
+                }
+
+                const blob = await pdf(
+                    <InvoicePDF
+                        client={client}
+                        items={fullInvoice.items || []}
+                        invoiceNumber={invoiceData.number}
+                        issueDate={invoiceData.issueDate}
+                        dueDate={invoiceData.dueDate}
+                        invoiceType={invoiceData.invoiceType}
+                    />
+                ).toBlob();
+
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `factura-${client.company_name?.replace(/\s+/g, '_') || 'cliente'}-${invoiceData.number}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
         };
 
         toast.promise(promise(), {
-            loading: 'Preparando descarga...',
-            success: 'Descarga iniciada',
+            loading: 'Obteniendo factura...',
+            success: 'Factura descargada',
             error: 'Error al descargar la factura'
         });
     };
@@ -228,6 +294,40 @@ export default function ClientDetailPage() {
         });
     };
 
+    // Monitor client state (Debug)
+    useEffect(() => {
+        if (client) {
+            console.log("Client State Updated:", { id: client.id, is_active: client.is_active, status: client.status });
+        }
+    }, [client]);
+
+    const handleStatusChange = async () => {
+        const isReactivating = deleteModal.type === 'reactivate';
+
+        const promise = async () => {
+            if (isReactivating) {
+                await mockBackend.reactivateClient(client.id);
+                // Update local state: Just flip is_active check
+                setClient(prev => ({ ...prev, is_active: true }));
+            } else {
+                await mockBackend.softDeleteClient(client.id);
+                // Update local state: Just flip is_active check
+                setClient(prev => ({ ...prev, is_active: false }));
+            }
+        };
+
+        toast.promise(promise(), {
+            loading: isReactivating ? 'Reactivando cliente...' : 'Deshabilitando cliente...',
+            success: isReactivating ? 'Cliente reactivado exitosamente' : 'Cliente marcado como inactivo',
+            error: (err) => {
+                console.error("Status Change Error:", err);
+                return `Error: ${err.message || 'Error desconocido'}`;
+            }
+        });
+
+        setDeleteModal({ isOpen: false, type: null });
+    };
+
     if (!client) return (
         <div className="space-y-6 pb-20 animate-in fade-in duration-300">
             {/* Header Skeleton */}
@@ -306,8 +406,34 @@ export default function ClientDetailPage() {
                         className="text-slate-500 hover:text-primary hover:bg-primary/5"
                     >
                         <Edit className="h-4 w-4 mr-2" />
+
                         Editar Cliente
                     </Button>
+
+                    {/* Status Toggle Button */}
+                    {client.is_active ? (
+                        <Button
+                            variant="ghost"
+                            onClick={() => setDeleteModal({ isOpen: true, type: 'soft' })}
+                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            title="Deshabilitar Cliente"
+                        >
+                            <Ban className="h-4 w-4 mr-2" />
+                            <span className="hidden sm:inline">Deshabilitar</span>
+                        </Button>
+                    ) : (
+                        <Button
+                            variant="ghost"
+                            onClick={() => setDeleteModal({ isOpen: true, type: 'reactivate' })}
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            title="Reactivar Cliente"
+                        >
+                            <CheckCircleIcon className="h-4 w-4 mr-2" />
+                            <span className="hidden sm:inline">Reactivar</span>
+                        </Button>
+                    )}
+
+                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
                     <Button
                         onClick={handleOpenPreview}
                         disabled={isGenerating || services.length === 0}
@@ -459,24 +585,51 @@ export default function ClientDetailPage() {
 
                         <div className="divide-y divide-slate-100 bg-white">
                             {services.length > 0 ? (
-                                services.map((service, index) => (
-                                    <div key={service.id || index} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
-                                                <Repeat className="h-4 w-4" />
+                                services.map((service, index) => {
+                                    const IconComponent = ICON_MAP[service.icon] || Repeat;
+                                    return (
+                                        <div key={service.id || index} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
+                                                    <IconComponent className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-slate-900 text-sm">{service.name}</p>
+                                                    <p className="text-xs text-slate-500">
+                                                        {service.type === 'recurring' ? 'Recurrente Mensual' : 'Pago Único'}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-semibold text-slate-900 text-sm">{service.name}</p>
-                                                <p className="text-xs text-slate-500">
-                                                    {service.type === 'recurring' ? 'Recurrente Mensual' : 'Pago Único'}
-                                                </p>
+                                            <div className="text-right flex items-center gap-4">
+                                                <p className="font-bold text-slate-900">${service.price.toLocaleString()}</p>
+                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/5"
+                                                        onClick={() => {
+                                                            setServiceToEdit({
+                                                                ...service,
+                                                                type: 'recurring' // Force type for modal compatibility if missing
+                                                            });
+                                                            setIsServiceModalOpen(true);
+                                                        }}
+                                                    >
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                                        onClick={() => setServiceToDelete(service)}
+                                                    >
+                                                        <Trash className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-slate-900">${service.price.toLocaleString()}</p>
-                                        </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             ) : (
                                 <div className="p-8 text-center text-slate-500 text-sm">
                                     No hay servicios activos.
@@ -568,7 +721,17 @@ export default function ClientDetailPage() {
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-3 text-center">
-                                                        <Download className="h-4 w-4 text-slate-300 group-hover:text-primary transition-colors" />
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-slate-300 hover:text-primary hover:bg-primary/5"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDownloadInvoice(inv);
+                                                            }}
+                                                        >
+                                                            <Download className="h-4 w-4" />
+                                                        </Button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -590,7 +753,7 @@ export default function ClientDetailPage() {
             </div>
 
             {/* --- MODALS (SIN CAMBIOS EN LÓGICA) --- */}
-            {client && (
+            {client && isBudgetManagerOpen && (
                 <BudgetManagerModal
                     isOpen={isBudgetManagerOpen}
                     onClose={() => setIsBudgetManagerOpen(false)}
@@ -617,7 +780,7 @@ export default function ClientDetailPage() {
                     items={[]}
                     initialData={viewInvoice}
                     readOnly={true}
-                    onConfirm={handleDownloadExisting}
+                    onConfirm={handleDownloadInvoice}
                 />
             )}
 
@@ -631,6 +794,71 @@ export default function ClientDetailPage() {
                     onAddColumn={() => { }}
                 />
             )}
+
+            <DeleteConfirmationModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}
+                onConfirm={handleStatusChange}
+                title={deleteModal.type === 'reactivate' ? "Reactivar cliente" : "Deshabilitar cliente"}
+                description={deleteModal.type === 'reactivate'
+                    ? "El cliente volverá a estar activo y visible en los listados principales."
+                    : "El cliente pasará a estado inactivo y se ocultará de la lista principal."}
+                confirmText={deleteModal.type === 'reactivate' ? "Reactivar" : "Deshabilitar"}
+                variant={deleteModal.type === 'reactivate' ? "default" : "warning"}
+            />
+            <DeleteConfirmationModal
+                isOpen={!!serviceToDelete}
+                onClose={() => setServiceToDelete(null)}
+                onConfirm={async () => {
+                    if (!serviceToDelete) return;
+
+                    const promise = async () => {
+                        await mockBackend.deleteClientService(serviceToDelete.id);
+                        setServices(prev => prev.filter(s => s.id !== serviceToDelete.id));
+                    };
+
+                    toast.promise(promise(), {
+                        loading: 'Eliminando servicio...',
+                        success: 'Servicio eliminado',
+                        error: 'Error al eliminar servicio'
+                    });
+                    setServiceToDelete(null);
+                }}
+                title="Eliminar Servicio"
+                description={`¿Estás seguro de que deseas eliminar el servicio "${serviceToDelete?.name}"? Esta acción no se puede deshacer.`}
+                confirmText="Eliminar"
+                variant="destructive"
+            />
+
+            <CreateServiceModal
+                isOpen={isServiceModalOpen}
+                onClose={() => {
+                    setIsServiceModalOpen(false);
+                    setServiceToEdit(null);
+                }}
+                initialData={serviceToEdit}
+                onConfirm={async (data) => {
+                    // Update Service Logic
+                    const promise = async () => {
+                        if (serviceToEdit) {
+                            // Update
+                            await mockBackend.updateClientService(serviceToEdit.id, data);
+                            setServices(prev => prev.map(s => s.id === serviceToEdit.id ? { ...s, ...data } : s));
+                        } else {
+                            // Create (Only relevant if we used this modal for creation too, but BudgetManager handles that mainly. 
+                            // We could allow adding here too if needed, but let's stick to update for now found in buttons)
+                        }
+                    };
+
+                    toast.promise(promise(), {
+                        loading: 'Actualizando servicio...',
+                        success: 'Servicio actualizado',
+                        error: 'Error al actualizar servicio'
+                    });
+                    setIsServiceModalOpen(false);
+                    setServiceToEdit(null);
+                }}
+            />
         </div >
     );
 }

@@ -1,28 +1,57 @@
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Search, CheckCircle2, LayoutGrid, Package } from 'lucide-react';
+import { X, Plus, Trash2, Search, CheckCircle2, LayoutGrid, Package, Wifi, Zap, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../components/ui/Dialog';
-import { mockServicesCatalog, mockBudgetTemplates } from '../../../data/mockData';
+import { mockBackend } from '../../../services/mockBackend';
+
+const ICON_MAP = {
+    'Wifi': Wifi, 'Zap': Zap, 'Globe': Globe, 'Monitor': Monitor,
+    'Smartphone': Smartphone, 'Server': Server, 'Database': Database,
+    'Cloud': Cloud, 'Shield': Shield,
+};
 
 export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
-    if (!isOpen) return null;
-
-    const [activeServices, setActiveServices] = useState(client.activeServices || []);
+    // Hooks must be called unconditionally
+    const [activeServices, setActiveServices] = useState(client?.activeServices || []);
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState('services'); // 'services' | 'packages'
+    const [catalog, setCatalog] = useState([]);
+    const [packages, setPackages] = useState([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            // Reset/Sync state when opening
+            setActiveServices(client?.activeServices || []);
+
+            // Fetch Catalog
+            const loadCatalog = async () => {
+                const s = await mockBackend.getCatalog();
+                setCatalog(s);
+                // setPackages(mockBudgetTemplates); // If generic
+            };
+            loadCatalog();
+        }
+    }, [isOpen, client]);
 
     // Filter available items
-    const availableServices = mockServicesCatalog.filter(s =>
+    const availableServices = catalog.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const availablePackages = mockBudgetTemplates.filter(p =>
+    const availablePackages = packages.filter(p =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    if (!isOpen) return null;
 
     const handleAddService = (service) => {
         const newService = {
             id: Math.random(), // Temp ID
+            // Map for backend
+            origin_plan_id: service.id, // This is the Catalog Plan ID
+            icon: service.icon || 'Wifi',
+
+            // UI Props
             serviceId: service.id,
             name: service.name,
             price: service.price,
@@ -100,22 +129,30 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
 
                         <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                             {activeTab === 'services' ? (
-                                availableServices.map(service => (
-                                    <div key={service.id} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-primary/50 hover:shadow-sm transition-all flex justify-between items-center group">
-                                        <div>
-                                            <p className="font-medium text-slate-800 text-sm">{service.name}</p>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-xs font-bold text-slate-600">${service.price.toLocaleString()}</span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${service.type === 'recurring' ? 'bg-primary/10 text-primary' : 'bg-sky-50 text-sky-600'}`}>
-                                                    {service.type === 'recurring' ? 'Mensual' : 'Único'}
-                                                </span>
+                                availableServices.map(service => {
+                                    const Icon = ICON_MAP[service.icon] || Wifi;
+                                    return (
+                                        <div key={service.id} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-primary/50 hover:shadow-sm transition-all flex justify-between items-center group">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
+                                                    <Icon className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-slate-800 text-sm">{service.name}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="text-xs font-bold text-slate-600">${service.price.toLocaleString()}</span>
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${service.type === 'recurring' ? 'bg-primary/10 text-primary' : 'bg-sky-50 text-sky-600'}`}>
+                                                            {service.type === 'recurring' ? 'Mensual' : 'Único'}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
+                                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 bg-slate-50 hover:bg-primary hover:text-white" onClick={() => handleAddService(service)}>
+                                                <Plus className="h-4 w-4" />
+                                            </Button>
                                         </div>
-                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 bg-slate-50 hover:bg-primary hover:text-white" onClick={() => handleAddService(service)}>
-                                            <Plus className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))
+                                    );
+                                })
                             ) : (
                                 availablePackages.map(pkg => (
                                     <div key={pkg.id} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-primary/50 hover:shadow-sm transition-all flex justify-between items-center group">
@@ -148,20 +185,28 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
 
                         <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                             {activeServices.length > 0 ? (
-                                activeServices.map((item, index) => (
-                                    <div key={index} className="flex justify-between items-center p-3 rounded-lg border border-slate-100 bg-slate-50/50 group hover:border-rose-200 transition-colors">
-                                        <div>
-                                            <p className="font-medium text-slate-800 text-sm">{item.name}</p>
-                                            <p className="text-xs text-slate-500">${item.price.toLocaleString()} {item.type === 'recurring' && '/ mes'}</p>
+                                activeServices.map((item, index) => {
+                                    const Icon = ICON_MAP[item.icon] || Wifi;
+                                    return (
+                                        <div key={index} className="flex justify-between items-center p-3 rounded-lg border border-slate-100 bg-slate-50/50 group hover:border-rose-200 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500">
+                                                    <Icon className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-slate-800 text-sm">{item.name}</p>
+                                                    <p className="text-xs text-slate-500">${item.price.toLocaleString()} {item.type === 'recurring' && '/ mes'}</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemoveService(index)}
+                                                className="text-slate-400 hover:text-rose-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() => handleRemoveService(index)}
-                                            className="text-slate-400 hover:text-rose-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                ))
+                                    );
+                                })
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center p-8 border-2 border-dashed border-slate-100 rounded-xl">
                                     <p className="text-sm">No hay servicios en el presupuesto.</p>

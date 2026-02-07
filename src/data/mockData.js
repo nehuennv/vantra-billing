@@ -58,57 +58,7 @@ export const mockStats = {
     activeClients: 142,
 };
 
-export const mockServicesCatalog = [
-    {
-        id: 1,
-        name: "Internet Fibra 300Mb",
-        price: 45000,
-        type: "recurring",
-        description: "Conexión simétrica de alta velocidad."
-    },
-    {
-        id: 2,
-        name: "Pack Seguridad Pro",
-        price: 25000,
-        type: "recurring",
-        description: "Firewall gestionado + Antivirus."
-    },
-    {
-        id: 3,
-        name: "Instalación Cableada",
-        price: 60000,
-        type: "unique",
-        description: "Costo de instalación y configuración de router."
-    },
-    {
-        id: 4,
-        name: "Mantenimiento Preventivo",
-        price: 35000,
-        type: "unique",
-        description: "Visita técnica para revisión de equipos."
-    }
-];
-
 // Plantillas de Presupuestos (Packs)
-export const mockBudgetTemplates = [
-    {
-        id: 201,
-        name: "Pack Emprendedor",
-        description: "Solución ideal para pequeños negocios.",
-        totalPrice: 28000,
-        services: [
-            { id: 1, name: "Internet Fibra 300Mb", price: 25000, type: 'recurring' },
-            { id: 106, name: "IP Fija", price: 3000, type: 'recurring' }
-        ]
-    },
-    {
-        id: 202,
-        name: "Pack Hogar Full",
-        description: "Internet y TV para toda la familia.",
-        totalPrice: 33500,
-        services: [
-            { id: 1, name: "Internet Fibra 300Mb", price: 25000, type: 'recurring' },
-            { id: 102, name: "TV Digital HD", price: 8500, type: 'recurring' }
-        ]
-    }
-];
+export const mockServicesCatalog = [];
+
+export const mockBudgetTemplates = [];

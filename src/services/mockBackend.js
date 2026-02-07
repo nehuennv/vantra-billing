@@ -1,62 +1,24 @@
 import { v4 as uuidv4 } from 'uuid';
-import { clientAPI } from './apiClient';
+import { clientAPI, invoiceAPI, servicesAPI, plansAPI } from './apiClient';
 
 // --- HELPER LOCALSTORAGE ---
-const DATA_VERSION = 'v4-fix-catalog'; // Increment to force reset
+const DATA_VERSION = 'v5-fix-keys'; // Increment to force reset
+
+// --- HELPER IN-MEMORY STORE (No Persistence) ---
+const memoryStore = {};
 
 // --- CONSTANTES ---
-const PLANS_CATALOG = [
-    { id: 'p1', name: "Plan Hogar 100MB", price: 18000, desc: "FTTH 100MB Residencial" },
-    { id: 'p2', name: "Plan Hogar 300MB", price: 25000, desc: "FTTH 300MB Residencial + TV" },
-    { id: 'p3', name: "Pyme Pack 300MB", price: 45000, desc: "Internet Simétrico + 1 IP Fija" },
-    { id: 'p4', name: "Corp Dedicado 100MB", price: 120000, desc: "Enlace Dedicado SLA 99.9%" }
-];
+const PLANS_CATALOG = []; // Empty catalog for testing
 
-// --- HELPER LOCALSTORAGE (ROBUST) ---
+// --- HELPER STORAGE ---
 const loadData = (key, defaultData) => {
-    // Versionado por key para evitar race conditions
-    const hiddenVersion = localStorage.getItem(`vantra_version_${key}`);
-    const stored = localStorage.getItem(`vantra_${key}`);
-
-    // Si la versión para ESTA key no coincide, forzamos reset
-    if (hiddenVersion !== DATA_VERSION) {
-        console.warn(`[MockBackend] Version Check for '${key}': ${hiddenVersion} != ${DATA_VERSION}. FORCING RESET.`);
-        localStorage.setItem(`vantra_${key}`, JSON.stringify(defaultData));
-        localStorage.setItem(`vantra_version_${key}`, DATA_VERSION);
-        return defaultData;
-    }
-
-    // Si no hay persistencia, guardamos y retornamos default
-    if (!stored) {
-        console.log(`[MockBackend] Init '${key}' -> Saving ${defaultData.length} items.`);
-        localStorage.setItem(`vantra_${key}`, JSON.stringify(defaultData));
-        localStorage.setItem(`vantra_version_${key}`, DATA_VERSION);
-        return defaultData;
-    }
-
-    try {
-        const parsedData = JSON.parse(stored);
-
-        if (!Array.isArray(parsedData)) {
-            console.error(`[MockBackend] Data for '${key}' is broken. Resetting.`);
-            localStorage.setItem(`vantra_${key}`, JSON.stringify(defaultData));
-            localStorage.setItem(`vantra_version_${key}`, DATA_VERSION);
-            return defaultData;
-        }
-
-        console.log(`[MockBackend] Loaded '${key}' (${parsedData.length} items) from Persistence.`);
-        return parsedData;
-
-    } catch (e) {
-        console.warn(`[MockBackend] Error loading '${key}'. Resetting.`, e);
-        localStorage.setItem(`vantra_${key}`, JSON.stringify(defaultData));
-        localStorage.setItem(`vantra_version_${key}`, DATA_VERSION);
-        return defaultData;
-    }
+    // Return from memory or default
+    return memoryStore[key] || defaultData;
 };
 
 const saveData = (key, data) => {
-    localStorage.setItem(`vantra_${key}`, JSON.stringify(data));
+    // Save to memory only
+    memoryStore[key] = data;
 };
 
 // --- ADAPTER / TRANSFORMER ---
@@ -121,7 +83,8 @@ const adaptClient = (apiClient) => {
         // Categorization
         category: apiClient.categoria || '',
         status: apiClient.status || 'potential',
-        is_active: apiClient.is_active ?? ['active', 'billed', 'to_bill'].includes(apiClient.status),
+        // Strict boolean from API. Default to true if undefined to avoid hiding valid clients.
+        is_active: (apiClient.is_active === true || apiClient.is_active === 1 || apiClient.is_active === 'true') ?? true,
 
         // Financial
         balance: rawBalance,
@@ -238,6 +201,36 @@ export const mockBackend = {
         }
     },
 
+    softDeleteClient: async (clientId) => {
+        try {
+            await clientAPI.softDelete(clientId);
+            return true;
+        } catch (error) {
+            console.error("[MockBackend] Failed to soft delete client:", error);
+            throw error;
+        }
+    },
+
+    reactivateClient: async (clientId) => {
+        try {
+            await clientAPI.reactivate(clientId);
+            return true;
+        } catch (error) {
+            console.error("[MockBackend] Failed to reactivate client:", error);
+            throw error;
+        }
+    },
+
+    hardDeleteClient: async (clientId) => {
+        try {
+            await clientAPI.delete(clientId);
+            return true;
+        } catch (error) {
+            console.error("[MockBackend] Failed to hard delete client:", error);
+            throw error;
+        }
+    },
+
     // === FACTURAS ===
     createInvoice: async (clientId, invoiceData) => {
         // invoiceData: { items: [], total: number, date: string, dueDate: string, number: string, invoiceType: string }
@@ -261,12 +254,39 @@ export const mockBackend = {
     },
 
     getClientInvoices: async (clientId) => {
-        await new Promise(r => setTimeout(r, 300));
-        const invoices = loadData('invoices', []);
-        // Return invoices for this client, sorted by date (newest first)
-        return invoices
-            .filter(inv => inv.clientId.toString() === clientId.toString())
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        try {
+            // Llamada a API Real
+            const response = await invoiceAPI.getAll({ client_id: clientId, limit: 100 });
+
+            // API Response normalization
+            const rawList = Array.isArray(response) ? response : (response?.data || []);
+
+            console.log("[DEBUG] Raw Invoices from API:", rawList);
+
+            // Mapper: API -> UI
+            return rawList.map(inv => ({
+                ...inv, // Spread all original fields first
+                id: inv.id,
+                clientId: inv.client_id,
+                // Map status to what UI expects (lowercase)
+                // API: 'DRAFT', 'EMITTED', 'PAID', 'VOID' -> UI: 'pending', 'paid', 'draft'
+                status: inv.status === 'PAID' ? 'paid' : (inv.status === 'VOID' ? 'void' : 'pending'),
+                originalStatus: inv.status, // Keep original for reference
+                invoiceType: inv.invoice_type,
+                number: inv.invoice_number,
+                issueDate: inv.issue_date, // YYYY-MM-DD
+                dueDate: inv.issue_date, // Needs mapping if available
+                amount: Number(inv.total_amount),
+                total: Number(inv.total_amount),
+                description: `Factura ${inv.invoice_type} - ${inv.period_billed}`,
+                created_at: inv.created_at,
+                items: inv.items || []
+            })).sort((a, b) => new Date(b.issueDate) - new Date(a.issueDate));
+
+        } catch (error) {
+            console.error("[MockBackend] Failed to fetch invoices from API:", error);
+            return [];
+        }
     },
 
     updateInvoiceStatus: async (invoiceId, newStatus) => {
@@ -282,54 +302,162 @@ export const mockBackend = {
         return invoices[index];
     },
 
+    downloadInvoicePdf: async (invoiceId) => {
+        try {
+            return await invoiceAPI.getPdf(invoiceId);
+        } catch (error) {
+            console.error("[MockBackend] PDF Download failed:", error);
+            throw error;
+        }
+    },
+
+    getInvoice: async (invoiceId) => {
+        try {
+            const response = await invoiceAPI.getOne(invoiceId);
+            return response.data || response;
+        } catch (error) {
+            console.error("[MockBackend] Failed to get single invoice:", error);
+            throw error;
+        }
+    },
+
+    // === SERVICIOS / PRESUPUESTO MATRIZ ===
+
+    // === SERVICIOS / PRESUPUESTO MATRIZ ===
     // === SERVICIOS / PRESUPUESTO MATRIZ ===
     getClientServices: async (clientId) => {
-        await new Promise(r => setTimeout(r, 300));
-        const services = loadData('services', INITIAL_SERVICES);
-        // Filter by client_id. Note: The seed data uses 'client_id', ensuring consistent usage.
-        // However, the UI 'mockClients' structure in `ClientDetailPage` expected nested `activeServices`.
-        // We are decoupling this, so `getClientServices` returning an array is correct.
-        return services.filter(s => s.client_id === clientId);
+        try {
+            const response = await servicesAPI.getAll({ client_id: clientId, limit: 100 });
+            const rawList = Array.isArray(response) ? response : (response?.data || []);
+
+            return rawList.map(s => ({
+                id: s.id,
+                client_id: s.client_id,
+                name: s.name, // Short Title
+                description: s.description, // Detailed Description
+                unit_price: Number(s.unit_price),
+                price: Number(s.unit_price), // UI alias
+                quantity: Number(s.quantity || 1),
+                is_active: s.is_active,
+                // API: 'recurring' | 'one_time' -> UI: 'recurring' | 'unique'
+                type: s.service_type === 'recurring' ? 'recurring' : 'unique',
+                api_service_type: s.service_type, // Keep original for reference
+                startDate: s.start_date,
+                icon: s.icon || 'Wifi',
+                origin_plan_id: s.origin_plan_id
+            }));
+        } catch (error) {
+            console.error("[MockBackend] Failed to get client services:", error);
+            return [];
+        }
     },
 
     addClientService: async (serviceData) => {
-        // serviceData: { client_id, name, price, type, ... }
-        await new Promise(r => setTimeout(r, 400));
-        const services = loadData('services', INITIAL_SERVICES);
-        const newService = {
-            id: uuidv4(),
-            startDate: new Date().toISOString().split('T')[0],
-            ...serviceData
-        };
-        services.push(newService);
-        saveData('services', services);
-        return newService;
+        console.log("[MockBackend] addClientService called with:", serviceData);
+        try {
+            // Map UI data to API body
+            const apiBody = {
+                client_id: serviceData.client_id,
+                name: serviceData.name,
+                description: serviceData.description || serviceData.name, // Fallback
+                unit_price: serviceData.price || serviceData.unit_price,
+                quantity: 1,
+                is_active: true,
+                start_date: serviceData.startDate || new Date().toISOString().split('T')[0],
+                origin_plan_id: serviceData.origin_plan_id || serviceData.serviceId || null,
+                icon: serviceData.icon || 'Wifi',
+                // UI: 'recurring' | 'unique' -> API: 'recurring' | 'one_time'
+                service_type: (serviceData.type === 'unique' || serviceData.type === 'one_time') ? 'one_time' : 'recurring'
+            };
+
+            const response = await servicesAPI.create(apiBody);
+            const s = response.data || response;
+
+            return {
+                id: s.id,
+                client_id: s.client_id,
+                name: s.name,
+                description: s.description,
+                price: Number(s.unit_price),
+                type: s.service_type === 'recurring' ? 'recurring' : 'unique',
+                startDate: s.start_date,
+                icon: s.icon,
+                origin_plan_id: s.origin_plan_id
+            };
+        } catch (error) {
+            console.error("[MockBackend] Failed to add client service:", error);
+            throw error;
+        }
+    },
+
+    updateClientService: async (serviceId, serviceData) => {
+        try {
+            const apiBody = {
+                name: serviceData.name,
+                description: serviceData.description,
+                unit_price: serviceData.price || serviceData.unit_price,
+                icon: serviceData.icon,
+                // UI: 'recurring' | 'unique' -> API: 'recurring' | 'one_time'
+                service_type: (serviceData.type === 'unique' || serviceData.type === 'one_time') ? 'one_time' : 'recurring'
+            };
+
+            await servicesAPI.update(serviceId, apiBody);
+            return true;
+        } catch (error) {
+            console.error("[MockBackend] Failed to update client service:", error);
+            throw error;
+        }
     },
 
     deleteClientService: async (serviceId) => {
-        await new Promise(r => setTimeout(r, 300));
-        let services = loadData('services', INITIAL_SERVICES);
-        services = services.filter(s => s.id !== serviceId);
-        saveData('services', services);
-        return true;
+        try {
+            await servicesAPI.delete(serviceId); // Soft delete by default
+            return true;
+        } catch (error) {
+            console.error("[MockBackend] Failed to delete client service:", error);
+            throw error;
+        }
     },
 
-    // === CATALOGO DE SERVICIOS (ServicesPage) ===
+    reactivateClientService: async (serviceId) => {
+        try {
+            await servicesAPI.reactivate(serviceId);
+            return true;
+        } catch (error) {
+            console.error("[MockBackend] Failed to reactivate client service:", error);
+            throw error;
+        }
+    },
+
+    deleteClientService: async (serviceId) => {
+        try {
+            // Hard delete or soft? UI usually implies soft first, but "borrar" might mean hard.
+            // We'll use soft delete (default) as per best practices, or hard if user requested "borrar".
+            // Let's use soft delete for now.
+            await servicesAPI.delete(serviceId);
+            return true;
+        } catch (error) {
+            console.error("[MockBackend] Failed to delete client service:", error);
+            throw error;
+        }
+    },
+
+    // === CATALOGO DE SERVICIOS (ServicesPage: TAB SERVICIOS) -> LOCAL STORAGE (Seeding) ===
     getCatalog: async () => {
         await new Promise(r => setTimeout(r, 400));
-        // Fallback to initial hardcoded catalog if empty, or just return empty?
-        // Ideally we should import mockServicesCatalog here for seeding, but to avoid circular deps or complexity, 
-        // let's assume the UI handles seeding or we just return what's in localstorage.
-        return loadData('catalog', INITIAL_CATALOG);
+        // Recupere del storage local o use el mock inicial
+        // Esto permite que el usuario cree servicios "base" localmente por ahora
+        return loadData('catalog', []);
     },
 
     createService: async (serviceData) => {
         await new Promise(r => setTimeout(r, 500));
         const catalog = loadData('catalog', []);
         const newService = {
-            id: uuidv4(),
+            id: uuidv4(), // Local UUID
             createdAt: new Date().toISOString(),
-            ...serviceData
+            ...serviceData,
+            price: Number(serviceData.price || 0)
         };
         catalog.push(newService);
         saveData('catalog', catalog);
@@ -340,7 +468,11 @@ export const mockBackend = {
         await new Promise(r => setTimeout(r, 400));
         const catalog = loadData('catalog', []);
         const index = catalog.findIndex(s => s.id === id);
-        if (index === -1) throw new Error("Service not found");
+
+        if (index === -1) {
+            console.warn("Service not found locally to update:", id);
+            return null;
+        }
 
         const updated = { ...catalog[index], ...data };
         catalog[index] = updated;
@@ -354,6 +486,85 @@ export const mockBackend = {
         catalog = catalog.filter(s => s.id !== id);
         saveData('catalog', catalog);
         return true;
+    },
+
+    // === GESTIÓN DE PRESUPUESTOS (ServicesPage: TAB PRESUPUESTOS) -> PLANS API ===
+    getPlans: async () => {
+        try {
+            const response = await plansAPI.getAll({ limit: 100 });
+            const rawList = Array.isArray(response) ? response : (response?.data || []);
+
+            return rawList.map(p => ({
+                id: p.id,
+                name: p.name,
+                description: p.description,
+                totalPrice: Number(p.price || p.unit_price || 0), // Plans usually have a total price
+                services: [], // API might not return nested services detail yet, or we assume it's a bundle
+                isCustomPrice: false, // Default
+                createdAt: p.created_at
+            }));
+        } catch (error) {
+            console.error("[MockBackend] Failed to fetch plans:", error);
+            return [];
+        }
+    },
+
+    createPlan: async (planData) => {
+        try {
+            const apiBody = {
+                name: planData.name,
+                description: planData.description,
+                unit_price: planData.totalPrice,
+                price: planData.totalPrice,
+                type: 'plan', // Explicitly marking as plan if needed
+            };
+
+            const response = await plansAPI.create(apiBody);
+            const p = response.data || response;
+
+            return {
+                id: p.id,
+                name: p.name,
+                description: p.description,
+                totalPrice: Number(p.price || p.unit_price),
+                services: planData.services || [],
+                createdAt: p.created_at
+            };
+        } catch (error) {
+            console.error("[MockBackend] Failed to create plan:", error);
+            throw error;
+        }
+    },
+
+    updatePlan: async (id, data) => {
+        try {
+            const apiBody = {
+                name: data.name,
+                description: data.description,
+                unit_price: data.totalPrice,
+                price: data.totalPrice,
+            };
+
+            await plansAPI.update(id, apiBody);
+            // Return updated local shape
+            return {
+                id,
+                ...data
+            };
+        } catch (error) {
+            console.error("[MockBackend] Failed to update plan:", error);
+            throw error;
+        }
+    },
+
+    deletePlan: async (id) => {
+        try {
+            await plansAPI.delete(id);
+            return true;
+        } catch (error) {
+            console.error("[MockBackend] Failed to delete plan:", error);
+            throw error;
+        }
     },
 
     // === METADATA (Statuses/Columns) ===
