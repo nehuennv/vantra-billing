@@ -1,22 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { DEFAULT_COLUMNS } from '../data/constants';
 import { Card, CardContent } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Plus, Search, Eye, UserX, LayoutGrid, List } from "lucide-react";
 import { ClientKanbanBoard } from "../components/ClientKanbanBoard";
-import { mockBackend } from "../../../services/mockBackend";
+import { clientAPI } from "../../../services/apiClient";
+import { adaptClient, adaptClientForApi } from "../../../utils/adapters";
 import { CreateClientModal } from "../components/CreateClientModal";
 import { toast } from 'sonner';
 import { Skeleton } from "../../../components/ui/Skeleton";
 
-const DEFAULT_COLUMNS = [
-    { id: 'potential', title: 'POTENCIAL' },
-    { id: 'contacted', title: 'CONTACTADO' },
-    { id: 'budgeted', title: 'PRESUPUESTADO' },
-    { id: 'to_bill', title: 'A FACTURAR' },
-    { id: 'billed', title: 'FACTURADO' },
-];
+
 
 export default function CRMPage() {
     const [searchTerm, setSearchTerm] = useState("");
@@ -38,8 +34,28 @@ export default function CRMPage() {
     useEffect(() => {
         const load = async () => {
             try {
-                const data = await mockBackend.getClients();
-                setClients(data);
+                const response = await clientAPI.getAll();
+                // API might return { data: [...] } or just [...]
+                const rawList = Array.isArray(response) ? response : response.data || [];
+                const adapted = rawList.map(adaptClient);
+                setClients(adapted);
+
+                // Dynamic Column Generation: Ensure all client statuses have a corresponding column
+                const usedStatuses = [...new Set(adapted.map(c => c.status))];
+                setColumns(prev => {
+                    const newCols = [...prev];
+                    usedStatuses.forEach(s => {
+                        // Ignore if valid status is missing (null/undefined) or already exists
+                        if (s && !newCols.find(c => c.id === s)) {
+                            newCols.push({
+                                id: s,
+                                title: s.toUpperCase().replace(/_/g, ' ')
+                            });
+                        }
+                    });
+                    return newCols;
+                });
+
             } catch (error) {
                 console.error("Error loading clients", error);
                 toast.error("Error al cargar los clientes");
@@ -56,7 +72,11 @@ export default function CRMPage() {
         const { id, ...dataToSave } = clientData;
 
         const promise = async () => {
-            const newClient = await mockBackend.createClient(dataToSave);
+            const apiBody = adaptClientForApi(dataToSave);
+            const response = await clientAPI.create(apiBody);
+            // La API devuelve el objeto creado, posiblemente en response.data
+            const created = response.data || response;
+            const newClient = adaptClient(created);
             setClients(prev => [...prev, newClient]);
             return newClient;
         };

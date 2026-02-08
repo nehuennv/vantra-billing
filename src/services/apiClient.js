@@ -51,6 +51,18 @@ export const clientAPI = {
         return request(`/v1/clients?${query}`, 'GET');
     },
 
+    getOne: async (id) => {
+        // Fallback: The direct endpoint /v1/clients/:id seems to be missing (404).
+        // We fetch the list and find the client client-side.
+        const query = new URLSearchParams({ _t: Date.now() }).toString();
+        const response = await request(`/v1/clients?${query}`, 'GET');
+        const list = Array.isArray(response) ? response : (response.data || []);
+        const found = list.find(c => c.id === id);
+
+        if (!found) throw new Error("Client not found");
+        return found;
+    },
+
     create: (data) => {
         return request('/v1/clients', 'POST', data);
     },
@@ -112,54 +124,67 @@ export const invoiceAPI = {
     }
 };
 
-export const servicesAPI = {
+// --- NEW V2 ARCHITECTURE ---
+
+// 1. CATALOG API (Global Settings / Menu)
+export const catalogAPI = {
     getAll: (params = {}) => {
         const query = new URLSearchParams({ ...params, _t: Date.now() }).toString();
-        return request(`/v1/services?${query}`, 'GET');
+        return request(`/v1/catalog?${query}`, 'GET');
     },
 
     create: (data) => {
-        return request('/v1/services', 'POST', data);
+        // data: { name, sku, description, default_price }
+        return request('/v1/catalog', 'POST', data);
     },
 
     update: (id, data) => {
-        return request(`/v1/services/${id}`, 'PATCH', data);
+        return request(`/v1/catalog/${id}`, 'PUT', data);
     },
 
-    delete: (id, hard = false) => {
-        const query = hard ? '?hard=true' : '';
-        return request(`/v1/services/${id}${query}`, 'DELETE');
+    delete: (id) => {
+        return request(`/v1/catalog/${id}`, 'DELETE');
     },
 
-    reactivate: (id) => {
-        return request(`/v1/services/${id}/reactivate`, 'POST');
+    restore: (id) => {
+        return request(`/v1/catalog/${id}/restore`, 'POST');
     }
 };
 
-export const plansAPI = {
-    getAll: (params = {}) => {
-        const query = new URLSearchParams({ ...params, _t: Date.now() }).toString();
-        return request(`/v1/plans?${query}`, 'GET');
-    },
-
-    getActive: () => {
-        return request('/v1/plans/active', 'GET');
-    },
-
-    getOne: (id) => {
-        return request(`/v1/plans/${id}`, 'GET');
+// 2. COMBOS API (Global Settings / Packs)
+export const combosAPI = {
+    getAll: () => {
+        const query = new URLSearchParams({ _t: Date.now() }).toString();
+        return request(`/v1/combos?${query}`, 'GET');
     },
 
     create: (data) => {
-        return request('/v1/plans', 'POST', data);
+        // data: { name, items: [{ catalog_item_id, quantity }] }
+        return request('/v1/combos', 'POST', data);
+    }
+};
+
+// 3. SERVICES API (Client Instances / Plates Served)
+export const servicesAPI = {
+    // List services for a specific client
+    getByClient: (clientId) => {
+        return request(`/v1/services/clients/${clientId}`, 'GET');
     },
 
-    update: (id, data) => {
-        return request(`/v1/plans/${id}`, 'PATCH', data);
+    // Assign a single catalog item to a client
+    assignToClient: (clientId, catalogItemId, overridePrice = null) => {
+        const payload = { catalog_item_id: catalogItemId };
+        if (overridePrice !== null) payload.price = overridePrice;
+        return request(`/v1/services/clients/${clientId}/single`, 'POST', payload);
     },
 
-    delete: (id, hard = false) => {
-        const query = hard ? '?hard=true' : '';
-        return request(`/v1/plans/${id}${query}`, 'DELETE');
+    // Assign a combo/bundle to a client
+    assignComboToClient: (clientId, comboId) => {
+        return request(`/v1/services/clients/${clientId}/bundle`, 'POST', { combo_id: comboId });
+    },
+
+    // Remove a service instance from a client
+    remove: (serviceInstanceId) => {
+        return request(`/v1/services/instances/${serviceInstanceId}`, 'DELETE');
     }
 };

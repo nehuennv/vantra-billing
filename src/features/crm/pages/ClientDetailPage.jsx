@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, FileText, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw, Download } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw, Download, Plus, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
-import { mockBackend } from "../../../services/mockBackend";
+import { clientAPI, servicesAPI, invoiceAPI, catalogAPI } from "../../../services/apiClient";
+import { adaptClient, adaptClientForApi } from "../../../utils/adapters";
+import { DEFAULT_COLUMNS } from '../data/constants';
+import { Input } from "../../../components/ui/Input";
 import { BudgetManagerModal } from "../components/BudgetManagerModal";
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../../billing/components/InvoicePDF';
@@ -41,6 +44,83 @@ export default function ClientDetailPage() {
     // New: State for Editing Client
     const [isEditClientOpen, setIsEditClientOpen] = useState(false);
 
+    // Quick Status Update
+    const [isAddingStatus, setIsAddingStatus] = useState(false);
+    const [newStatusName, setNewStatusName] = useState("");
+    const [statusList, setStatusList] = useState(DEFAULT_COLUMNS);
+
+    // Enhance Initial Status logic to include current if not in default
+    useEffect(() => {
+        if (client && client.status) {
+            const exists = statusList.find(c => c.id === client.status);
+            if (!exists) {
+                setStatusList(prev => [...prev, { id: client.status, title: client.status.toUpperCase().replace(/_/g, ' ') }]);
+            }
+        }
+    }, [client]);
+
+    const handleQuickStatusChange = async (e) => {
+        const newStatus = e.target.value;
+        const oldStatus = client.status;
+        const wasInactive = !client.is_active;
+        const willBeActive = newStatus !== 'inactive';
+
+        // Optimistic Update
+        const updatedClientState = {
+            ...client,
+            status: newStatus,
+            is_active: willBeActive
+        };
+        setClient(updatedClientState);
+
+        try {
+            // Case 1: Reactivation (Inactive -> Active Status)
+            // Separate requests to ensure both operations succeed without interference.
+            if (wasInactive && willBeActive) {
+                // First: Reactivate
+                await clientAPI.update(id, { is_active: true });
+                // Small buffer to ensure backend state consistency if needed
+                // await new Promise(r => setTimeout(r, 100)); 
+            }
+
+            // Case 2: Status Update (Partial Update Only)
+            // We send ONLY the status field to avoid validation errors on other fields (e.g. unique headers).
+            // PATCH supports partial updates.
+            await clientAPI.update(id, { status: newStatus });
+
+            toast.success("Estado actualizado correctamente");
+
+        } catch (err) {
+            console.error(err);
+            toast.error("Error al actualizar el estado");
+            // Revert optimistic update
+            setClient(prev => ({ ...prev, status: oldStatus, is_active: !wasInactive }));
+        }
+    };
+
+    const handleCreateNewStatus = async () => {
+        if (!newStatusName.trim()) return;
+        const newId = newStatusName.trim().toLowerCase().replace(/\s+/g, '_');
+        const newTitle = newStatusName.trim().toUpperCase();
+
+        // Add to list
+        const newCol = { id: newId, title: newTitle };
+        setStatusList(prev => [...prev, newCol]);
+
+        // Update Client
+        setClient(prev => ({ ...prev, status: newId }));
+
+        try {
+            await clientAPI.update(id, { status: newId });
+            toast.success(`Estado "${newTitle}" creado y asignado`);
+            setIsAddingStatus(false);
+            setNewStatusName("");
+        } catch (err) {
+            console.error(err);
+            toast.error("Error creando estado");
+        }
+    };
+
     // New: State for Deleting/Disabling Client
     const [deleteModal, setDeleteModal] = useState({
         isOpen: false,
@@ -58,30 +138,56 @@ export default function ClientDetailPage() {
         const load = async () => {
             try {
                 // 1. Resolve Client
-                const allClients = await mockBackend.getClients();
-                const found = allClients.find(c => c.id.toString() === id.toString());
-                setClient(found);
+                const clientResponse = await clientAPI.getOne(id);
+                // Handle response.data or direct response
+                const clientData = clientResponse.data || clientResponse;
+                setClient(adaptClient(clientData));
 
-                if (found) {
-                    const svc = await mockBackend.getClientServices(found.id);
-                    setServices(svc);
+                if (clientData) {
+                    // 2. Load Services (Instances)
+                    const svcResponse = await servicesAPI.getByClient(clientData.id);
 
-                    // Load Invoices
-                    const invs = await mockBackend.getClientInvoices(found.id);
-                    setInvoices(invs);
+                    // Parse Services from V2 Response (Grouped + Individual)
+                    let rawServices = [];
+                    if (Array.isArray(svcResponse)) {
+                        rawServices = svcResponse;
+                    } else if (svcResponse && typeof svcResponse === 'object') {
+                        // Extract from grouped_services (Combos)
+                        const fromGroups = (svcResponse.grouped_services || []).flatMap(g => g.items || []);
+                        // Extract individual_services
+                        const individuals = svcResponse.individual_services || [];
+                        rawServices = [...fromGroups, ...individuals];
+                    }
+
+                    // Adapt Service Instances
+                    const adaptedServices = rawServices.map(s => ({
+                        id: s.id,
+                        catalog_item_id: s.catalog_item_id,
+                        name: s.name,
+                        price: Number(s.unit_price || s.price), // V2 uses unit_price
+                        type: 'recurring', // Default
+                        icon: s.icon || 'Wifi',
+                        origin_combo_id: s.origin_combo_id // Keep track of origin
+                    }));
+                    setServices(adaptedServices);
+
+                    // 3. Load Invoices
+                    const invResponse = await invoiceAPI.getAll({ client_id: clientData.id });
+                    setInvoices(invResponse.data || []);
                 }
 
-                // 3. Load Statuses
-                const cols = await mockBackend.getStatuses();
-                setStatuses(cols);
+                // 4. Load Statuses (Columns) - For now mocked or specific API if exists
+                // const cols = await mockBackend.getStatuses(); 
+                // We'll keep a default list if API doesn't support dynamic columns yet
+                setStatuses([{ id: 'active', title: 'ACTIVO' }, { id: 'inactive', title: 'INACTIVO' }]);
+
             } catch (error) {
                 console.error("Error loading client details", error);
                 toast.error("Error al cargar los datos del cliente");
             }
         };
 
-        // Simulating a bit of delay to show skeleton (optional, can be removed)
-        setTimeout(load, 500);
+        load();
     }, [id]);
 
     // Handle Budget Changes (Smart Save: Add/Delete)
@@ -90,30 +196,39 @@ export default function ClientDetailPage() {
         if (!client) return;
 
         const promise = async () => {
-            // 1. Identify Added Items (Those that don't exist in current services or have temp ID)
-            const added = newActiveServices.filter(n => !services.find(o => o.id === n.id));
+            // 1. Identify Added Items (Items with temp ID like 'temp-...')
+            const added = newActiveServices.filter(n => n.id.toString().startsWith('temp-'));
             console.log("Items identified as ADDED:", added);
 
-            // 2. Identify Deleted Items
+            // 2. Identify Deleted Items (Items present in old 'services' but missing in 'newActiveServices')
             const deleted = services.filter(o => !newActiveServices.find(n => n.id === o.id));
             console.log("Items identified as DELETED:", deleted);
 
             // Process Adds
             for (const item of added) {
-                const { id: tempId, ...rest } = item;
-                console.log("Processing Add:", rest);
-                await mockBackend.addClientService({ ...rest, client_id: client.id });
+                console.log("Processing Add:", item);
+                // We use assignToClient which takes (clientId, catalogItemId)
+                await servicesAPI.assignToClient(client.id, item.catalog_item_id);
             }
 
             // Process Deletes
             for (const item of deleted) {
                 console.log("Processing Delete:", item.id);
-                await mockBackend.deleteClientService(item.id);
+                // We use remove which takes (serviceInstanceId)
+                await servicesAPI.remove(item.id);
             }
 
             // Reload to sync
-            const updatedServices = await mockBackend.getClientServices(client.id);
-            setServices(updatedServices);
+            const svcResponse = await servicesAPI.getByClient(client.id);
+            const adaptedServices = (svcResponse || []).map(s => ({
+                id: s.id,
+                catalog_item_id: s.catalog_item_id,
+                name: s.name,
+                price: Number(s.price),
+                type: 'recurring',
+                icon: s.icon || 'Wifi'
+            }));
+            setServices(adaptedServices);
             setIsBudgetManagerOpen(false);
         };
 
@@ -137,7 +252,7 @@ export default function ClientDetailPage() {
         const promise = async () => {
             try {
                 // 1. Intentar descarga desde el Backend (Blob real)
-                const blob = await mockBackend.downloadInvoicePdf(invoiceData.id);
+                const blob = await invoiceAPI.getPdf(invoiceData.id);
 
                 // Crear URL del Blob y descargar
                 const url = URL.createObjectURL(blob);
@@ -157,7 +272,7 @@ export default function ClientDetailPage() {
                 // Primero intentamos buscar el detalle completo de la factura para tener los items
                 let fullInvoice = invoiceData;
                 try {
-                    const detail = await mockBackend.getInvoice(invoiceData.id);
+                    const detail = await invoiceAPI.getOne(invoiceData.id);
                     if (detail && detail.items && detail.items.length > 0) {
                         // A veces el backend devuelve items con estructura diferente, normalizamos
                         const normalizedItems = detail.items.map(i => ({
@@ -218,16 +333,18 @@ export default function ClientDetailPage() {
                 invoiceType: invoiceDataArg.invoiceType // Ensure type is passed
             };
 
-            await mockBackend.createInvoice(client.id, invoiceData);
+            // 1. Save to Backend
+            // We need to adapt data to what API expects.
+            // API expects: { client_id, items: [...], ... }
+            await invoiceAPI.create(client.id, invoiceData);
 
             // 2. Refresh Invoices
-            const updatedInvoices = await mockBackend.getClientInvoices(client.id);
-            setInvoices(updatedInvoices);
+            const invResponse = await invoiceAPI.getAll({ client_id: client.id });
+            setInvoices(invResponse.data || []);
 
             // Refresh Client Data (optional)
-            const allClients = await mockBackend.getClients();
-            const found = allClients.find(c => c.id.toString() === id.toString());
-            setClient(found);
+            const clientData = await clientAPI.getOne(id);
+            setClient(clientData);
 
             // 3. Generate PDF
             const blob = await pdf(
@@ -267,7 +384,7 @@ export default function ClientDetailPage() {
         const oldInvoices = [...invoices];
         setInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, status: newStatus } : inv));
 
-        const promise = mockBackend.updateInvoiceStatus(invoice.id, newStatus);
+        const promise = invoiceAPI.updateStatus(invoice.id, newStatus);
 
         toast.promise(promise, {
             loading: 'Actualizando estado...',
@@ -283,8 +400,10 @@ export default function ClientDetailPage() {
     const handleUpdateClient = async (updatedData) => {
         const promise = async () => {
             // UpdatedData comes from Modal with ID inside
-            const saved = await mockBackend.updateClient(client.id, updatedData);
-            setClient(saved);
+            const apiBody = adaptClientForApi(updatedData);
+            const response = await clientAPI.update(client.id, apiBody);
+            const saved = response.data || response;
+            setClient(adaptClient(saved));
         };
 
         toast.promise(promise(), {
@@ -294,10 +413,10 @@ export default function ClientDetailPage() {
         });
     };
 
-    // Monitor client state (Debug)
+    // Monitor client state (Clean JSON for User)
     useEffect(() => {
         if (client) {
-            console.log("Client State Updated:", { id: client.id, is_active: client.is_active, status: client.status });
+            console.log(client);
         }
     }, [client]);
 
@@ -306,11 +425,11 @@ export default function ClientDetailPage() {
 
         const promise = async () => {
             if (isReactivating) {
-                await mockBackend.reactivateClient(client.id);
+                await clientAPI.reactivate(client.id);
                 // Update local state: Just flip is_active check
                 setClient(prev => ({ ...prev, is_active: true }));
             } else {
-                await mockBackend.softDeleteClient(client.id);
+                await clientAPI.softDelete(client.id);
                 // Update local state: Just flip is_active check
                 setClient(prev => ({ ...prev, is_active: false }));
             }
@@ -379,12 +498,68 @@ export default function ClientDetailPage() {
                     </Link>
                     <div>
                         <div className="flex items-center gap-3">
-                            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
-                                {client.company_name || client.name}
-                            </h1>
-                            <Badge variant={client.status === 'active' ? 'success' : 'secondary'} className="uppercase text-[10px] tracking-wider px-2.5 py-0.5">
-                                {client.status}
-                            </Badge>
+                            {/* Status Selector */}
+                            <div className="flex items-center gap-2">
+                                {!isAddingStatus ? (
+                                    <>
+                                        <div className="relative">
+                                            <select
+                                                value={client.status}
+                                                onChange={handleQuickStatusChange}
+                                                className={`appearance-none pl-3 pr-8 py-1 rounded-md text-xs font-bold uppercase tracking-wider border outline-none cursor-pointer transition-colors
+                                                ${client.status === 'active'
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}
+                                            >
+                                                {statusList.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.title}</option>
+                                                ))}
+                                            </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-slate-500">
+                                                <svg className="h-3 w-3 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-6 w-6 p-0 rounded-full text-slate-400 hover:text-primary hover:bg-primary/10"
+                                            title="Crear nuevo estado"
+                                            onClick={() => setIsAddingStatus(true)}
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                                        <Input
+                                            value={newStatusName}
+                                            onChange={(e) => setNewStatusName(e.target.value)}
+                                            placeholder="Nuevo estado..."
+                                            className="h-7 w-32 text-xs px-2"
+                                            autoFocus
+                                            onKeyDown={(e) => e.key === 'Enter' && handleCreateNewStatus()}
+                                        />
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 w-7 p-0 text-emerald-600 hover:bg-emerald-50"
+                                            onClick={handleCreateNewStatus}
+                                            disabled={!newStatusName.trim()}
+                                        >
+                                            <CheckCircle className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 w-7 p-0 text-slate-400 hover:text-rose-500 hover:bg-rose-50"
+                                            onClick={() => { setIsAddingStatus(false); setNewStatusName(""); }}
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+
                             {client.category && (
                                 <Badge variant="outline" className="uppercase text-[10px] tracking-wider px-2.5 py-0.5 border-slate-300 text-slate-500">
                                     {client.category}
@@ -447,13 +622,13 @@ export default function ClientDetailPage() {
                         )}
                     </Button>
                 </div>
-            </div>
+            </div >
 
             {/* --- LAYOUT GRID --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            < div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start" >
 
                 {/* --- LEFT COLUMN: CLIENT DATA (1 Col) --- */}
-                <div className="space-y-6">
+                < div className="space-y-6" >
                     <Card className="border-slate-200 shadow-sm overflow-hidden">
                         <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4">
                             <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
@@ -532,42 +707,44 @@ export default function ClientDetailPage() {
                     </Card>
 
                     {/* Notas y Observaciones */}
-                    {(client.internalObs || client.obs) && (
-                        <Card className="border-slate-200 shadow-sm overflow-hidden">
-                            <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4">
-                                <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-primary" />
-                                    Notas y Observaciones
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-4 space-y-4">
-                                {client.internalObs && (
-                                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-3 text-sm mb-3">
-                                        <div className="font-bold text-xs uppercase mb-1 flex items-center gap-2">
-                                            <FileText className="h-3 w-3" /> Nota Interna (Privada)
+                    {
+                        (client.internalObs || client.obs) && (
+                            <Card className="border-slate-200 shadow-sm overflow-hidden">
+                                <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4">
+                                    <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                        <FileText className="h-4 w-4 text-primary" />
+                                        Notas y Observaciones
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-4 space-y-4">
+                                    {client.internalObs && (
+                                        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-3 text-sm mb-3">
+                                            <div className="font-bold text-xs uppercase mb-1 flex items-center gap-2">
+                                                <FileText className="h-3 w-3" /> Nota Interna (Privada)
+                                            </div>
+                                            <div
+                                                className="prose prose-sm max-w-none prose-p:my-1 prose-a:text-amber-900"
+                                                dangerouslySetInnerHTML={{ __html: client.internalObs }}
+                                            />
                                         </div>
-                                        <div
-                                            className="prose prose-sm max-w-none prose-p:my-1 prose-a:text-amber-900"
-                                            dangerouslySetInnerHTML={{ __html: client.internalObs }}
-                                        />
-                                    </div>
-                                )}
-                                {client.obs && (
-                                    <div className="text-sm text-slate-600">
-                                        <p className="font-semibold text-xs text-slate-400 uppercase mb-1">Nota Pública</p>
-                                        <p>{client.obs}</p>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
+                                    )}
+                                    {client.obs && (
+                                        <div className="text-sm text-slate-600">
+                                            <p className="font-semibold text-xs text-slate-400 uppercase mb-1">Nota Pública</p>
+                                            <p>{client.obs}</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )
+                    }
+                </div >
 
                 {/* --- RIGHT COLUMN: OPERATIONS (2 Cols) --- */}
-                <div className="lg:col-span-2 space-y-8">
+                < div className="lg:col-span-2 space-y-8" >
 
                     {/* SECCIÓN 1: PRESUPUESTO */}
-                    <Card className="border-slate-200 shadow-sm overflow-hidden">
+                    < Card className="border-slate-200 shadow-sm overflow-hidden" >
                         <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4 flex flex-row items-center justify-between">
                             <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
                                 <Zap className="h-4 w-4 text-primary" />
@@ -641,18 +818,20 @@ export default function ClientDetailPage() {
                         </div>
 
                         {/* Footer Total */}
-                        {services.length > 0 && (
-                            <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-between items-center">
-                                <span className="text-sm font-bold text-slate-600 uppercase">Total Mensual</span>
-                                <span className="text-xl font-bold text-primary tracking-tight">
-                                    ${recurringAmount.toLocaleString()}
-                                </span>
-                            </div>
-                        )}
-                    </Card>
+                        {
+                            services.length > 0 && (
+                                <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-between items-center">
+                                    <span className="text-sm font-bold text-slate-600 uppercase">Total Mensual</span>
+                                    <span className="text-xl font-bold text-primary tracking-tight">
+                                        ${recurringAmount.toLocaleString()}
+                                    </span>
+                                </div>
+                            )
+                        }
+                    </Card >
 
                     {/* SECCIÓN 2: HISTORIAL DE FACTURAS */}
-                    <div className="space-y-4">
+                    < div className="space-y-4" >
                         <div className="flex items-center gap-2 px-1">
                             <FileText className="h-5 w-5 text-slate-400" />
                             <h2 className="text-lg font-bold text-slate-900">Historial de Facturación</h2>
@@ -747,53 +926,61 @@ export default function ClientDetailPage() {
                                 />
                             )}
                         </Card>
-                    </div>
+                    </div >
 
-                </div>
-            </div>
+                </div >
+            </div >
 
             {/* --- MODALS (SIN CAMBIOS EN LÓGICA) --- */}
-            {client && isBudgetManagerOpen && (
-                <BudgetManagerModal
-                    isOpen={isBudgetManagerOpen}
-                    onClose={() => setIsBudgetManagerOpen(false)}
-                    client={{ ...client, activeServices: services }}
-                    onSave={handleSaveBudget}
-                />
-            )}
+            {
+                client && isBudgetManagerOpen && (
+                    <BudgetManagerModal
+                        isOpen={isBudgetManagerOpen}
+                        onClose={() => setIsBudgetManagerOpen(false)}
+                        client={{ ...client, activeServices: services }}
+                        onSave={handleSaveBudget}
+                    />
+                )
+            }
 
-            {client && (
-                <InvoicePreviewModal
-                    open={isPreviewOpen}
-                    onOpenChange={setIsPreviewOpen}
-                    client={client}
-                    items={services}
-                    onConfirm={handleConfirmInvoice}
-                />
-            )}
+            {
+                client && (
+                    <InvoicePreviewModal
+                        open={isPreviewOpen}
+                        onOpenChange={setIsPreviewOpen}
+                        client={client}
+                        items={services}
+                        onConfirm={handleConfirmInvoice}
+                    />
+                )
+            }
 
-            {client && viewInvoice && (
-                <InvoicePreviewModal
-                    open={isViewModalOpen}
-                    onOpenChange={setIsViewModalOpen}
-                    client={client}
-                    items={[]}
-                    initialData={viewInvoice}
-                    readOnly={true}
-                    onConfirm={handleDownloadInvoice}
-                />
-            )}
+            {
+                client && viewInvoice && (
+                    <InvoicePreviewModal
+                        open={isViewModalOpen}
+                        onOpenChange={setIsViewModalOpen}
+                        client={client}
+                        items={[]}
+                        initialData={viewInvoice}
+                        readOnly={true}
+                        onConfirm={handleDownloadInvoice}
+                    />
+                )
+            }
 
-            {client && (
-                <CreateClientModal
-                    isOpen={isEditClientOpen}
-                    onClose={() => setIsEditClientOpen(false)}
-                    columns={statuses.length > 0 ? statuses : [{ id: client.status, title: client.status.toUpperCase() }]}
-                    onUpdate={handleUpdateClient}
-                    clientToEdit={client}
-                    onAddColumn={() => { }}
-                />
-            )}
+            {
+                client && (
+                    <CreateClientModal
+                        isOpen={isEditClientOpen}
+                        onClose={() => setIsEditClientOpen(false)}
+                        columns={statuses.length > 0 ? statuses : [{ id: client.status, title: client.status.toUpperCase() }]}
+                        onUpdate={handleUpdateClient}
+                        clientToEdit={client}
+                        onAddColumn={() => { }}
+                    />
+                )
+            }
 
             <DeleteConfirmationModal
                 isOpen={deleteModal.isOpen}

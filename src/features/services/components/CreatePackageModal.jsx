@@ -1,71 +1,77 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Search, Plus, Trash2, Package, Tag, DollarSign } from 'lucide-react';
+import { X, Save, Search, Plus, Trash2, Package, Tag, DollarSign, Minus } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../../components/ui/Dialog';
-import { mockServicesCatalog } from '../../../data/mockData';
 
-export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }) {
+export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = [] }) {
     const [formData, setFormData] = useState({
         name: '',
-        description: '',
-        services: [],
-        isCustomPrice: false,
-        customPriceValue: 0
+        items: [] // { catalog_item_id, quantity, name, price } - name/price for UI convenience
     });
     const [searchTerm, setSearchTerm] = useState("");
 
-    // Initialize or Reset
+    // Reset
     useEffect(() => {
-        if (packageToEdit) {
-            setFormData({
-                name: packageToEdit.name,
-                description: packageToEdit.description,
-                services: packageToEdit.services,
-                isCustomPrice: !!packageToEdit.isCustomPrice,
-                customPriceValue: packageToEdit.customPriceValue || packageToEdit.totalPrice
-            });
-        } else {
+        if (isOpen) {
             setFormData({
                 name: '',
-                description: '',
-                services: [],
-                isCustomPrice: false,
-                customPriceValue: 0
+                items: []
             });
         }
-    }, [packageToEdit, isOpen]);
+    }, [isOpen]);
 
-    const availableServices = mockServicesCatalog.filter(s =>
+    const availableServices = catalogItems.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const handleAddService = (service) => {
-        setFormData({
-            ...formData,
-            services: [...formData.services, service]
-        });
+    const handleAddItem = (item) => {
+        // Check if already exists
+        const exists = formData.items.find(i => i.catalog_item_id === item.id);
+        if (exists) {
+            // Increment
+            setFormData(prev => ({
+                ...prev,
+                items: prev.items.map(i => i.catalog_item_id === item.id ? { ...i, quantity: i.quantity + 1 } : i)
+            }));
+        } else {
+            // Add new
+            setFormData(prev => ({
+                ...prev,
+                items: [...prev.items, { catalog_item_id: item.id, quantity: 1, name: item.name, price: item.price }]
+            }));
+        }
     };
 
-    const handleRemoveService = (index) => {
-        const updated = [...formData.services];
-        updated.splice(index, 1);
-        setFormData({ ...formData, services: updated });
+    const handleRemoveItem = (itemId) => {
+        setFormData(prev => ({
+            ...prev,
+            items: prev.items.filter(i => i.catalog_item_id !== itemId)
+        }));
     };
 
-    // Calculate sum of services
-    const servicesTotal = formData.services.reduce((sum, s) => sum + s.price, 0);
-    // Final price logic
-    const finalPrice = formData.isCustomPrice ? Number(formData.customPriceValue) : servicesTotal;
+    const handleUpdateQuantity = (itemId, delta) => {
+        setFormData(prev => ({
+            ...prev,
+            items: prev.items.map(i => {
+                if (i.catalog_item_id === itemId) {
+                    const newQ = i.quantity + delta;
+                    if (newQ <= 0) return null; // Remove if 0
+                    return { ...i, quantity: newQ };
+                }
+                return i;
+            }).filter(Boolean)
+        }));
+    };
+
+    // Calculate sum of services for display (though Combo price might be different in V2, we show sum as reference)
+    const servicesTotal = formData.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
 
     const handleSubmit = () => {
-        if (formData.name && formData.services.length > 0) {
+        if (formData.name && formData.items.length > 0) {
+            // Payload for API: { name, items: [{ catalog_item_id, quantity }] }
             onConfirm({
-                ...formData,
-                totalPrice: finalPrice,
-                // Ensure we pass the flags to save custom pricing state
-                isCustomPrice: formData.isCustomPrice,
-                customPriceValue: Number(formData.customPriceValue),
-                id: packageToEdit ? packageToEdit.id : Date.now()
+                name: formData.name,
+                items: formData.items.map(i => ({ catalog_item_id: i.catalog_item_id, quantity: i.quantity }))
             });
             onClose();
         }
@@ -77,13 +83,12 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }
                 <DialogHeader className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-row items-center justify-between space-y-0">
                     <div>
                         <DialogTitle className="font-heading font-bold text-lg text-slate-800 text-left">
-                            {packageToEdit ? 'Editar Presupuesto' : 'Nuevo Presupuesto'}
+                            Nuevo Combo
                         </DialogTitle>
                         <DialogDescription className="text-left">
-                            {packageToEdit ? `Editando: ${formData.name}` : 'Crea un paquete de servicios'}
+                            Combina productos del catálogo en un paquete.
                         </DialogDescription>
                     </div>
-                    {/* Close button handled by Dialog or we can add explicit one if Dialog doesn't have it by default, but Dialog usually has X or backdrop click */}
                 </DialogHeader>
 
                 <div className="flex-1 flex overflow-hidden">
@@ -94,7 +99,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }
                                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                                 <input
                                     type="text"
-                                    placeholder="Buscar servicio..."
+                                    placeholder="Buscar producto..."
                                     className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white"
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -102,15 +107,14 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
                             {availableServices.map(s => (
-                                <div key={s.id} className="flex flex-col p-3 rounded-lg border border-slate-200 bg-white hover:border-primary/50 transition-all group shadow-sm hover:shadow-md">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className="font-medium text-slate-700 text-sm">{s.name}</span>
-                                        <BadgeCustom type={s.type} />
+                                <div key={s.id} className="flex flex-col p-3 rounded-lg border border-slate-200 bg-white hover:border-primary/50 transition-all group shadow-sm hover:shadow-md cursor-pointer" onClick={() => handleAddItem(s)}>
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className="font-medium text-slate-700 text-sm line-clamp-1">{s.name}</span>
                                     </div>
                                     <div className="flex justify-between items-end mt-auto">
-                                        <p className="text-sm font-bold text-slate-900">${s.price.toLocaleString()}</p>
-                                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground rounded-full" onClick={() => handleAddService(s)}>
-                                            <Plus className="h-4 w-4" />
+                                        <p className="text-xs font-bold text-slate-500">${s.price?.toLocaleString()}</p>
+                                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground rounded-full">
+                                            <Plus className="h-3 w-3" />
                                         </Button>
                                     </div>
                                 </div>
@@ -118,56 +122,49 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }
                         </div>
                     </div>
 
-                    {/* RIGHT COLUMN: Budget Details */}
+                    {/* RIGHT COLUMN: Items Selected */}
                     <div className="w-2/3 flex flex-col p-6 overflow-hidden">
-                        {/* 1. Basic Info */}
+                        {/* 1. Name */}
                         <div className="space-y-4 mb-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold uppercase text-slate-400 tracking-wider">Nombre del Presupuesto</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Ej: Plan Full PyME"
-                                        className="w-full p-2.5 rounded-lg border border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold uppercase text-slate-400 tracking-wider">Descripción (Opcional)</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Breve descripción..."
-                                        className="w-full p-2.5 rounded-lg border border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary/20 outline-none"
-                                        value={formData.description}
-                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    />
-                                </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold uppercase text-slate-400 tracking-wider">Nombre del Combo</label>
+                                <input
+                                    type="text"
+                                    placeholder="Ej: Pack Inicial + Wifi"
+                                    className="w-full p-3 rounded-xl border border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary/20 outline-none font-medium text-lg"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                />
                             </div>
                         </div>
 
                         {/* 2. Selected Services List */}
-                        <label className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-2 block">Servicios Incluidos ({formData.services.length})</label>
+                        <label className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-2 block">Ítems Incluidos ({formData.items.length})</label>
                         <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl bg-slate-50/50 p-2 space-y-2 mb-4 custom-scrollbar">
-                            {formData.services.length === 0 ? (
+                            {formData.items.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
                                     <Package className="h-10 w-10 mb-2 stroke-1" />
-                                    <p className="text-sm font-medium">No has seleccionado servicios</p>
-                                    <p className="text-xs">Usa el panel izquierdo para agregar</p>
+                                    <p className="text-sm font-medium">Selecciona productos a la izquierda</p>
                                 </div>
                             ) : (
-                                formData.services.map((s, idx) => (
+                                formData.items.map((item, idx) => (
                                     <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-white shadow-sm border border-slate-100 group">
                                         <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                                                <span className="text-xs font-bold">{idx + 1}</span>
+                                            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+                                                <button onClick={(e) => { e.stopPropagation(); handleUpdateQuantity(item.catalog_item_id, -1); }} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 text-slate-500">
+                                                    <Minus className="h-3 w-3" />
+                                                </button>
+                                                <span className="w-8 text-center text-sm font-bold text-slate-700">{item.quantity}</span>
+                                                <button onClick={(e) => { e.stopPropagation(); handleUpdateQuantity(item.catalog_item_id, 1); }} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 text-slate-500">
+                                                    <Plus className="h-3 w-3" />
+                                                </button>
                                             </div>
                                             <div>
-                                                <p className="text-sm font-medium text-slate-800">{s.name}</p>
-                                                <p className="text-xs text-slate-500">${s.price.toLocaleString()}</p>
+                                                <p className="text-sm font-medium text-slate-800">{item.name}</p>
+                                                <p className="text-xs text-slate-500">${item.price?.toLocaleString()} c/u</p>
                                             </div>
                                         </div>
-                                        <button onClick={() => handleRemoveService(idx)} className="text-slate-300 hover:text-rose-500 transition-colors p-1">
+                                        <button onClick={() => handleRemoveItem(item.catalog_item_id)} className="text-slate-300 hover:text-rose-500 transition-colors p-2">
                                             <Trash2 className="h-4 w-4" />
                                         </button>
                                     </div>
@@ -175,74 +172,30 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, packageToEdit }
                             )}
                         </div>
 
-                        {/* 3. Pricing Section */}
-                        <div className="bg-slate-900 rounded-xl p-5 text-white shadow-lg shadow-primary/10">
-                            <div className="flex justify-between items-start mb-4">
+                        {/* 3. Footer */}
+                        <div className="bg-slate-900 rounded-xl p-5 text-white shadow-lg shadow-primary/10 mt-auto">
+                            <div className="flex justify-between items-center mb-4">
                                 <div>
-                                    <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Resumen de Costos</p>
+                                    <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Precio Referencia (Suma)</p>
                                     <div className="flex items-center gap-2">
                                         <span className="text-2xl font-bold font-heading">
-                                            ${finalPrice.toLocaleString()}
+                                            ${servicesTotal.toLocaleString()}
                                         </span>
-                                        {formData.isCustomPrice && (
-                                            <span className="text-sm text-slate-500 line-through decoration-slate-500">
-                                                ${servicesTotal.toLocaleString()}
-                                            </span>
-                                        )}
                                     </div>
-                                </div>
-                                <div className="flex flex-col items-end gap-2">
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${formData.isCustomPrice ? 'bg-primary border-primary' : 'border-slate-600 bg-transparent'}`}>
-                                            {formData.isCustomPrice && <DollarSign className="h-3 w-3 text-white" />}
-                                        </div>
-                                        <input
-                                            type="checkbox"
-                                            className="hidden"
-                                            checked={formData.isCustomPrice}
-                                            onChange={(e) => setFormData({ ...formData, isCustomPrice: e.target.checked })}
-                                        />
-                                        <span className="text-sm text-slate-300 group-hover:text-white transition-colors">Precio Manual / Promo</span>
-                                    </label>
-
-                                    {formData.isCustomPrice && (
-                                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
-                                            <span className="text-sm text-primary-foreground/70">Nuevo Precio: $</span>
-                                            <input
-                                                type="number"
-                                                value={formData.customPriceValue}
-                                                onChange={(e) => setFormData({ ...formData, customPriceValue: e.target.value })}
-                                                className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:ring-1 focus:ring-primary outline-none"
-                                            />
-                                        </div>
-                                    )}
                                 </div>
                             </div>
 
                             <Button
                                 onClick={handleSubmit}
-                                disabled={!formData.name || formData.services.length === 0}
+                                disabled={!formData.name || formData.items.length === 0}
                                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
                             >
-                                <Save className="h-4 w-4 mr-2" /> Guardar Presupuesto
+                                <Save className="h-4 w-4 mr-2" /> Crear Combo
                             </Button>
                         </div>
                     </div>
                 </div>
             </DialogContent>
         </Dialog>
-    );
-}
-
-// Helper simple badge
-function BadgeCustom({ type }) {
-    const isRecurring = type === 'recurring';
-    return (
-        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${isRecurring
-            ? 'text-primary bg-primary/10 border-primary/20'
-            : 'text-sky-600 bg-sky-50 border-sky-100'
-            }`}>
-            {isRecurring ? 'Mensual' : 'Único'}
-        </span>
     );
 }

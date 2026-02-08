@@ -60,14 +60,7 @@ export function ClientKanbanBoard({ columns, tasks, onTasksChange, onAddColumn, 
     const getTasksByColumn = (columnId) => {
         return tasks.filter(task => {
             // Exact match
-            if (task.status === columnId) return true;
-            // Legacy fallbacks might not be needed if we ensure all data is clean,
-            // but keeping simple for safety:
-            if (columnId === 'potential' && task.status === 'potential') return true;
-            if (columnId === 'billed' && task.status === 'active') return true; // Legacy map
-            if (columnId === 'to_bill' && task.status === 'debtor') return true; // Legacy map
-
-            return false;
+            return task.status === columnId;
         });
     };
 

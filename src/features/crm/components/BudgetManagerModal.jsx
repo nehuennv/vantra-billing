@@ -1,13 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Search, CheckCircle2, LayoutGrid, Package, Wifi, Zap, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../components/ui/Dialog';
-import { mockBackend } from '../../../services/mockBackend';
+import { catalogAPI, combosAPI } from '../../../services/apiClient';
 
 const ICON_MAP = {
     'Wifi': Wifi, 'Zap': Zap, 'Globe': Globe, 'Monitor': Monitor,
     'Smartphone': Smartphone, 'Server': Server, 'Database': Database,
     'Cloud': Cloud, 'Shield': Shield,
+};
+
+// Logic duplicated from ServicesPage for consistency (or could be moved to utils)
+const inferIcon = (name) => {
+    const n = name.toLowerCase();
+    if (n.includes('internet') || n.includes('wifi') || n.includes('fibra')) return 'Wifi';
+    if (n.includes('tv') || n.includes('cable') || n.includes('canal')) return 'Monitor';
+    if (n.includes('movil') || n.includes('celular') || n.includes('sim')) return 'Smartphone';
+    if (n.includes('cloud') || n.includes('nube')) return 'Cloud';
+    if (n.includes('hosting') || n.includes('servidor')) return 'Server';
+    if (n.includes('seguridad') || n.includes('camara') || n.includes('alarma')) return 'Shield';
+    return 'Zap';
 };
 
 export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
@@ -23,13 +35,20 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
             // Reset/Sync state when opening
             setActiveServices(client?.activeServices || []);
 
-            // Fetch Catalog
-            const loadCatalog = async () => {
-                const s = await mockBackend.getCatalog();
-                setCatalog(s);
-                // setPackages(mockBudgetTemplates); // If generic
+            // Fetch Catalog & Combos
+            const loadData = async () => {
+                try {
+                    const [catRes, comboRes] = await Promise.all([
+                        catalogAPI.getAll({ limit: 100 }),
+                        combosAPI.getAll()
+                    ]);
+                    setCatalog(catRes.data || []);
+                    setPackages(comboRes.data || []);
+                } catch (err) {
+                    console.error("Error loading catalog/combos", err);
+                }
             };
-            loadCatalog();
+            loadData();
         }
     }, [isOpen, client]);
 
@@ -46,30 +65,48 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
 
     const handleAddService = (service) => {
         const newService = {
-            id: Math.random(), // Temp ID
+            id: `temp-${Math.random()}`, // Temp ID for UI
             // Map for backend
-            origin_plan_id: service.id, // This is the Catalog Plan ID
-            icon: service.icon || 'Wifi',
-
-            // UI Props
-            serviceId: service.id,
+            catalog_item_id: service.id, // Store Catalog ID
             name: service.name,
-            price: service.price,
-            type: service.type,
+            price: Number(service.default_price),
+            type: 'recurring', // Defaulting for V2
+            icon: inferIcon(service.name),
             startDate: new Date().toISOString().split('T')[0]
         };
         setActiveServices([...activeServices, newService]);
     };
 
     const handleAddPackage = (pkg) => {
-        const newItems = pkg.services.map(s => ({
-            id: Math.random(),
-            serviceId: s.id,
-            name: s.name,
-            price: s.price,
-            type: s.type,
-            startDate: new Date().toISOString().split('T')[0]
-        }));
+        // Expand Combo items
+        // Note: pkg.items usually has { catalog_item_id, quantity }
+        // We need to resolve names/prices from Catalog if not in pkg items
+        // Only if pkg items lack details.
+        // Assuming V2 combo.items might refer to catalog items.
+        // For simplicity in this view, if we don't have full details in `pkg.items`,
+        // we might fail to show nice names.
+        // We can cross-reference `catalog`.
+
+        const newItems = [];
+        if (pkg.items && Array.isArray(pkg.items)) {
+            pkg.items.forEach(comboItem => {
+                const catalogItem = catalog.find(c => c.id === comboItem.catalog_item_id);
+                if (catalogItem) {
+                    for (let i = 0; i < (comboItem.quantity || 1); i++) {
+                        newItems.push({
+                            id: `temp-combo-${Math.random()}`,
+                            catalog_item_id: catalogItem.id,
+                            name: catalogItem.name,
+                            price: Number(catalogItem.default_price),
+                            type: 'recurring',
+                            icon: inferIcon(catalogItem.name),
+                            startDate: new Date().toISOString().split('T')[0]
+                        });
+                    }
+                }
+            });
+        }
+
         setActiveServices([...activeServices, ...newItems]);
     };
 
@@ -79,7 +116,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
         setActiveServices(newServices);
     };
 
-    const totalBudget = activeServices.reduce((sum, s) => sum + s.price, 0);
+    const totalBudget = activeServices.reduce((sum, s) => sum + (s.price || 0), 0);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -105,13 +142,13 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                                     onClick={() => setActiveTab('services')}
                                     className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'services' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
-                                    <LayoutGrid className="h-3 w-3" /> Servicios
+                                    <LayoutGrid className="h-3 w-3" /> Catálogo
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('packages')}
                                     className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'packages' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
-                                    <Package className="h-3 w-3" /> Paquetes
+                                    <Package className="h-3 w-3" /> Combos
                                 </button>
                             </div>
                         </div>
@@ -120,7 +157,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder={activeTab === 'services' ? "Buscar servicio..." : "Buscar paquete..."}
+                                placeholder={activeTab === 'services' ? "Buscar producto..." : "Buscar combo..."}
                                 className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -130,7 +167,8 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                         <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                             {activeTab === 'services' ? (
                                 availableServices.map(service => {
-                                    const Icon = ICON_MAP[service.icon] || Wifi;
+                                    const iconName = inferIcon(service.name);
+                                    const Icon = ICON_MAP[iconName] || Zap;
                                     return (
                                         <div key={service.id} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-primary/50 hover:shadow-sm transition-all flex justify-between items-center group">
                                             <div className="flex items-center gap-3">
@@ -140,10 +178,8 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                                                 <div>
                                                     <p className="font-medium text-slate-800 text-sm">{service.name}</p>
                                                     <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className="text-xs font-bold text-slate-600">${service.price.toLocaleString()}</span>
-                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${service.type === 'recurring' ? 'bg-primary/10 text-primary' : 'bg-sky-50 text-sky-600'}`}>
-                                                            {service.type === 'recurring' ? 'Mensual' : 'Único'}
-                                                        </span>
+                                                        <span className="text-xs font-bold text-slate-600">${Number(service.default_price).toLocaleString()}</span>
+                                                        {service.sku && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{service.sku}</span>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -159,9 +195,8 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                                         <div>
                                             <p className="font-medium text-slate-800 text-sm">{pkg.name}</p>
                                             <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-xs font-bold text-slate-600">${pkg.totalPrice.toLocaleString()}</span>
                                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                                                    {pkg.services.length} servicios
+                                                    {pkg.items?.length || 0} ítems
                                                 </span>
                                             </div>
                                         </div>
@@ -186,7 +221,8 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                         <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                             {activeServices.length > 0 ? (
                                 activeServices.map((item, index) => {
-                                    const Icon = ICON_MAP[item.icon] || Wifi;
+                                    const iconName = item.icon || inferIcon(item.name || '');
+                                    const Icon = ICON_MAP[iconName] || Zap;
                                     return (
                                         <div key={index} className="flex justify-between items-center p-3 rounded-lg border border-slate-100 bg-slate-50/50 group hover:border-rose-200 transition-colors">
                                             <div className="flex items-center gap-3">
@@ -195,7 +231,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-slate-800 text-sm">{item.name}</p>
-                                                    <p className="text-xs text-slate-500">${item.price.toLocaleString()} {item.type === 'recurring' && '/ mes'}</p>
+                                                    <p className="text-xs text-slate-500">${(item.price || 0).toLocaleString()} {item.type === 'recurring' && '/ mes'}</p>
                                                 </div>
                                             </div>
                                             <button
