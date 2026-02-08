@@ -142,6 +142,14 @@ export const plansAPI = {
         return request(`/v1/plans?${query}`, 'GET');
     },
 
+    getActive: () => {
+        return request('/v1/plans/active', 'GET');
+    },
+
+    getOne: (id) => {
+        return request(`/v1/plans/${id}`, 'GET');
+    },
+
     create: (data) => {
         return request('/v1/plans', 'POST', data);
     },
@@ -150,7 +158,8 @@ export const plansAPI = {
         return request(`/v1/plans/${id}`, 'PATCH', data);
     },
 
-    delete: (id) => {
-        return request(`/v1/plans/${id}`, 'DELETE');
+    delete: (id, hard = false) => {
+        const query = hard ? '?hard=true' : '';
+        return request(`/v1/plans/${id}${query}`, 'DELETE');
     }
 };

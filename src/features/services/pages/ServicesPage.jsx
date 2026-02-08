@@ -3,46 +3,73 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
-import { Plus, Zap, Repeat, Trash2, Edit, Search, Package, Wifi, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield, Layers, LayoutGrid, Filter, ArrowUpDown, SlidersHorizontal, ArrowUp, ArrowDown, X, PackageOpen } from "lucide-react";
-import { mockServicesCatalog, mockBudgetTemplates } from "../../../data/mockData";
+import { Plus, Zap, Repeat, Trash2, Edit, Search, Package, Wifi, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield, Layers, LayoutGrid, Filter, ArrowUpDown, SlidersHorizontal, ArrowUp, ArrowDown, X, PackageOpen, Download, Upload } from "lucide-react";
 import { CreateServiceModal } from "../../../components/modals/CreateServiceModal";
-import { CreatePackageModal } from "../components/CreatePackageModal";
+import { CreatePlanModal } from "../components/CreatePlanModal";
 import { ConfirmDeleteModal } from "../../../components/modals/ConfirmDeleteModal";
 
 // API & SERVICES
-import { servicesAPI } from "../../../services/apiClient";
+import { servicesAPI, plansAPI } from "../../../services/apiClient";
 import { mockBackend } from "../../../services/mockBackend";
 import { toast } from 'sonner';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Skeleton } from '../../../components/ui/Skeleton';
 
 // ------------------- ADAPTERS -------------------
-// API (snake_case) -> UI (camelCase)
+// Services: API (snake_case) -> UI (camelCase)
 const adaptService = (apiData) => {
     return {
         id: apiData.id,
         name: apiData.name,
         description: apiData.description,
-        price: Number(apiData.unit_price) || 0, // unit_price -> price
-        type: apiData.service_type,             // service_type -> type
-        isActive: apiData.is_active,            // is_active -> isActive
-        icon: apiData.icon || 'Zap'             // default icon if missing
+        price: Number(apiData.unit_price) || 0,
+        type: apiData.service_type,
+        isActive: apiData.is_active,
+        icon: apiData.icon || 'Zap'
     };
 };
 
-// UI (camelCase) -> API (snake_case)
+// Services: UI (camelCase) -> API (snake_case)
 const adaptServiceToApi = (uiData) => {
     return {
         name: uiData.name,
         description: uiData.description,
-        unit_price: Number(uiData.price),       // price -> unit_price
-        service_type: uiData.type,              // type -> service_type
-        is_active: uiData.isActive ?? true,     // isActive -> is_active
+        unit_price: Number(uiData.price),
+        service_type: uiData.type,
+        is_active: uiData.isActive ?? true,
         icon: uiData.icon
     };
 };
 
-// Mapa de iconos
+// Plans: API (snake_case) -> UI (camelCase)
+const adaptPlan = (apiPlan) => {
+    return {
+        id: apiPlan.id,
+        name: apiPlan.name,
+        description: apiPlan.description,
+        price: Number(apiPlan.price),
+        downloadSpeed: apiPlan.download_speed_mbps,
+        uploadSpeed: apiPlan.upload_speed_mbps,
+        billingCycle: apiPlan.billing_frequency,
+        type: apiPlan.service_type,
+        isActive: apiPlan.is_active,
+    };
+};
+
+// Plans: UI (camelCase) -> API (snake_case)
+const adaptPlanToApi = (uiData) => {
+    return {
+        name: uiData.name,
+        description: uiData.description,
+        price: Number(uiData.price),
+        download_speed_mbps: Number(uiData.downloadSpeed),
+        upload_speed_mbps: Number(uiData.uploadSpeed),
+        billing_frequency: uiData.billingCycle,
+        service_type: uiData.type,
+        is_active: uiData.isActive ?? true
+    };
+};
+
 const ICON_MAP = {
     'Wifi': Wifi, 'Zap': Zap, 'Globe': Globe, 'Monitor': Monitor,
     'Smartphone': Smartphone, 'Server': Server, 'Database': Database,
@@ -50,103 +77,119 @@ const ICON_MAP = {
 };
 
 export default function ServicesPage() {
-    const [viewMode, setViewMode] = useState('services'); // 'services' | 'budgets'
+    const [viewMode, setViewMode] = useState('services'); // 'services' | 'plans'
     const [searchTerm, setSearchTerm] = useState("");
 
     // --- Options State ---
-    const [sortBy, setSortBy] = useState('name'); // 'name' | 'price'
-    const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
-    const [filterType, setFilterType] = useState('all'); // 'all' | 'recurring' | 'one_time'
+    const [sortBy, setSortBy] = useState('name');
+    const [sortOrder, setSortOrder] = useState('asc');
+    const [filterType, setFilterType] = useState('all');
     const [isGrouped, setIsGrouped] = useState(false);
 
     // Modals
     const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
-    const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
+    const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
     // Editing / Deleting State
-    const [packageToEdit, setPackageToEdit] = useState(null);
+    const [planToEdit, setPlanToEdit] = useState(null);
     const [serviceToEdit, setServiceToEdit] = useState(null);
-    const [itemToDelete, setItemToDelete] = useState(null); // { id, type: 'service'|'package', name }
+    const [itemToDelete, setItemToDelete] = useState(null); // { id, type: 'service'|'plan', name }
 
     // Data State
     const [services, setServices] = useState([]);
-    const [budgets, setBudgets] = useState(mockBudgetTemplates || []);
+    const [plans, setPlans] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Initial Load - REAL API for Services
+    // Initial Load
     useEffect(() => {
-        const loadServices = async () => {
+        const loadData = async () => {
             setIsLoading(true);
             try {
-                // Pedimos limit=100 para traer "todos"
-                const response = await servicesAPI.getAll({ limit: 100 });
+                // Parallel fetch
+                const [servicesRes, plansRes] = await Promise.allSettled([
+                    servicesAPI.getAll({ limit: 100 }),
+                    plansAPI.getAll({ limit: 100 })
+                ]);
 
-                // La API devuelve { status: 'success', data: [...], pagination: {...} }
-                if (response && response.data) {
-                    const adaptedServices = response.data.map(adaptService);
-                    setServices(adaptedServices);
+                // Handle Services
+                if (servicesRes.status === 'fulfilled' && servicesRes.value?.data) {
+                    setServices(servicesRes.value.data.map(adaptService));
                 } else {
                     setServices([]);
                 }
+
+                // Handle Plans
+                if (plansRes.status === 'fulfilled' && plansRes.value?.data) {
+                    setPlans(plansRes.value.data.map(adaptPlan));
+                } else {
+                    setPlans([]);
+                }
+
             } catch (err) {
-                console.error("Error loading services from API", err);
-                toast.error("Error al conectar con el servidor de servicios.");
-                setServices([]);
+                console.error("Error loading data", err);
+                toast.error("Error al cargar datos.");
             } finally {
                 setIsLoading(false);
             }
         };
 
-        loadServices();
+        loadData();
     }, []);
 
-    // --- Service Handlers (REAL API) ---
+    // --- Service Handlers ---
     const handleSaveService = async (serviceData) => {
         const payload = adaptServiceToApi(serviceData);
-
-
-
         const promise = async () => {
             if (serviceData.id && services.some(s => s.id === serviceData.id)) {
                 // EDIT
-                // Nota: Si el ID es temporal (creado localmente ante fallo), la API fallará. 
-                // Asumimos que si está en la lista tiene ID real del backend o es seed.
-                try {
-                    await servicesAPI.update(serviceData.id, payload);
-                    // Optimistic UI Update
-                    setServices(prev => prev.map(s => s.id === serviceData.id ? { ...s, ...serviceData } : s));
-                } catch (e) {
-                    // Si falla la API, intentamos fallback a mock si es data de seed, o lanzamos error
-                    console.warn("API update failed, trying mock fallback", e);
-                    await mockBackend.updateService(serviceData.id, serviceData);
-                    setServices(prev => prev.map(s => s.id === serviceData.id ? { ...s, ...serviceData } : s));
-                }
+                await servicesAPI.update(serviceData.id, payload);
+                setServices(prev => prev.map(s => s.id === serviceData.id ? { ...s, ...serviceData } : s));
             } else {
                 // CREATE
                 const response = await servicesAPI.create(payload);
-                // Si la API devuelve el objeto creado, lo adaptamos y agregamos
-                const newSvc = response && response.data ? adaptService(response.data) : { ...serviceData, id: 'temp-id-' + Date.now() };
-
-                if (response || newSvc) {
-                    setServices(prev => [...prev, newSvc]);
-                }
+                const newSvc = response && response.data ? adaptService(response.data) : { ...serviceData, id: 'temp-' + Date.now() };
+                setServices(prev => [...prev, newSvc]);
             }
         };
 
         toast.promise(promise(), {
             loading: 'Guardando servicio...',
-            success: 'Servicio guardado correctamente',
-            error: 'Error al guardar el servicio'
+            success: 'Servicio guardado',
+            error: 'Error al guardar'
         });
-
         setIsServiceModalOpen(false);
         setServiceToEdit(null);
     };
 
-    const handleEditService = (service) => {
-        setServiceToEdit(service);
-        setIsServiceModalOpen(true);
+    // --- Plan Handlers ---
+    const handleSavePlan = async (planData) => {
+        // planData comes from modal in camelCase (uiData format)
+        // We need to convert it to API format for the request
+        const payload = adaptPlanToApi(planData);
+
+        const promise = async () => {
+            if (planData.id && plans.some(p => p.id === planData.id)) {
+                // EDIT
+                await plansAPI.update(planData.id, payload);
+                // Update local state with the uiData (planData already has the fields)
+                // We restart fetch or update manually. Let's update manually for speed.
+                setPlans(prev => prev.map(p => p.id === planData.id ? { ...p, ...planData } : p));
+            } else {
+                // CREATE
+                const response = await plansAPI.create(payload);
+                const newPlan = response && response.data ? adaptPlan(response.data) : { ...planData, id: 'temp-' + Date.now() };
+                setPlans(prev => [...prev, newPlan]);
+            }
+        };
+
+        toast.promise(promise(), {
+            loading: 'Guardando plan...',
+            success: 'Plan guardado',
+            error: 'Error al guardar plan'
+        });
+        setIsPlanModalOpen(false);
+        setPlanToEdit(null);
     };
 
     const handleDeleteClick = (item, type) => {
@@ -159,120 +202,28 @@ export default function ServicesPage() {
 
         const promise = async () => {
             if (itemToDelete.type === 'service') {
-                // DELETE SERVICE (API)
-                try {
-                    await servicesAPI.delete(itemToDelete.id, true);
-                } catch (e) {
-                    console.warn("API delete failed, trying mock fallback", e);
-                    // Fallback para datos seed que no existen en backend real
-                    await mockBackend.deleteService(itemToDelete.id);
-                }
+                await servicesAPI.delete(itemToDelete.id, true); // Hard delete for now as per previous logic
                 setServices(prev => prev.filter(s => s.id !== itemToDelete.id));
             } else {
-                // DELETE BUDGET (MOCK / LOCAL)
-                setBudgets(prev => prev.filter(b => b.id !== itemToDelete.id));
+                await plansAPI.delete(itemToDelete.id, true);
+                setPlans(prev => prev.filter(p => p.id !== itemToDelete.id));
             }
         };
 
         toast.promise(promise(), {
             loading: 'Eliminando...',
-            success: `${itemToDelete.type === 'service' ? 'Servicio' : 'Presupuesto'} eliminado`,
+            success: 'Elemento eliminado',
             error: 'Error al eliminar'
         });
-
         setIsDeleteModalOpen(false);
         setItemToDelete(null);
     };
 
-    // --- Package Handlers (MOCK / LOCAL) ---
-    const handleSavePackage = (savedPackage) => {
-        const exists = budgets.find(b => b.id === savedPackage.id);
-
-        if (exists) {
-            setBudgets(budgets.map(b => b.id === savedPackage.id ? savedPackage : b));
-            toast.success("Presupuesto actualizado");
-        } else {
-            setBudgets([...budgets, savedPackage]);
-            toast.success("Presupuesto creado");
-        }
-        setIsPackageModalOpen(false);
-        setPackageToEdit(null);
-    };
-
-    const handleEditPackage = (pkg) => {
-        setPackageToEdit(pkg);
-        setIsPackageModalOpen(true);
-    };
-
-    const handleOpenNewPackage = () => {
-        setPackageToEdit(null);
-        setIsPackageModalOpen(true);
-    };
-
-    const handleOpenNewService = () => {
-        setServiceToEdit(null);
-        setIsServiceModalOpen(true);
-    };
-
-    // --- Processing Logic (Filter/Sort) ---
-    const processData = (data, type) => {
-        let result = [...data];
-
-        // 1. Search
-        if (searchTerm) {
-            result = result.filter(item =>
-                item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.description?.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-        }
-
-        // 2. Filter
-        if (type === 'services' && filterType !== 'all') {
-            result = result.filter(item => item.type === filterType);
-        }
-
-        // 3. Sort
-        result.sort((a, b) => {
-            const valA = sortBy === 'name' ? a.name : (type === 'services' ? a.price : a.totalPrice);
-            const valB = sortBy === 'name' ? b.name : (type === 'services' ? b.price : b.totalPrice);
-
-            if (sortBy === 'name') {
-                return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-            } else {
-                return sortOrder === 'asc' ? valA - valB : valB - valA;
-            }
-        });
-
-        return result;
-    };
-
-    const processedServices = processData(services, 'services');
-    const processedBudgets = processData(budgets, 'budgets');
-
-    // Grouping helper
-    const getGroupedServices = () => {
-        return {
-            recurring: processedServices.filter(s => s.type === 'recurring'),
-            one_time: processedServices.filter(s => s.type === 'unique')
-        };
-    };
-
-    const toggleSortOrder = () => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-
-    // Reset Filters Utility
-    const clearFilters = () => {
-        setSearchTerm("");
-        setSortBy('name');
-        setSortOrder('asc');
-        setFilterType('all');
-        setIsGrouped(false);
-    };
-
-    // --- RENDER HELPERS ---
+    // --- Render Helpers ---
     const renderServiceCard = (service, index) => {
         const IconComponent = ICON_MAP[service.icon] || (service.type === 'recurring' ? Repeat : Zap);
         return (
-            <Card key={service.id ? service.id.toString() : `svc-${index}`} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
+            <Card key={service.id || index} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
                 <CardHeader className="pb-3 pt-5 flex flex-row items-start justify-between space-y-0">
                     <div className={`p-2.5 rounded-xl transition-colors ${service.type === 'recurring' ? 'bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground' : 'bg-sky-50 text-sky-600 group-hover:bg-sky-500 group-hover:text-white'}`}>
                         <IconComponent className="h-6 w-6" />
@@ -288,27 +239,15 @@ export default function ServicesPage() {
                         <div>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Precio Base</p>
                             <div className="flex items-baseline gap-1">
-                                <p className="text-2xl font-bold text-slate-900 font-heading">${service.price.toLocaleString()}</p>
+                                <p className="text-2xl font-bold text-slate-900 font-heading">${service.price?.toLocaleString()}</p>
                                 {service.type === 'recurring' && <span className="text-xs text-slate-400 font-medium">/mes</span>}
                             </div>
                         </div>
                         <div className="flex gap-1">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditService(service)}
-                                className="h-8 w-8 p-0 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg"
-                                title="Editar"
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => { setServiceToEdit(service); setIsServiceModalOpen(true); }} className="h-8 w-8 p-0 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg">
                                 <Edit className="h-4 w-4" />
                             </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteClick(service, 'service')}
-                                className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                                title="Eliminar"
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(service, 'service')} className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg">
                                 <Trash2 className="h-4 w-4" />
                             </Button>
                         </div>
@@ -318,170 +257,134 @@ export default function ServicesPage() {
         );
     };
 
-    // Skeleton Render
-    const renderSkeletons = () => (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="border border-slate-200 rounded-xl p-6 bg-white space-y-4">
-                    <div className="flex justify-between items-start">
-                        <Skeleton className="h-12 w-12 rounded-xl" />
-                        <Skeleton className="h-6 w-20 rounded-full" />
+    const renderPlanCard = (plan, index) => {
+        return (
+            <Card key={plan.id || index} className="group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden flex flex-col">
+                <CardHeader className="pb-3 pt-5 bg-slate-50/50 border-b border-slate-100">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                            <Wifi className="h-6 w-6" />
+                        </div>
+                        <Badge className="bg-emerald-100 text-emerald-700 border-none shadow-none">{plan.billingCycle === 'monthly' ? 'Mensual' : plan.billingCycle}</Badge>
                     </div>
-                    <div className="space-y-2">
-                        <Skeleton className="h-6 w-3/4" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-2/3" />
+                    <CardTitle className="text-xl text-slate-800">{plan.name}</CardTitle>
+                    <p className="text-sm text-slate-500 line-clamp-1">{plan.description}</p>
+                </CardHeader>
+
+                <CardContent className="pt-4 flex-1 flex flex-col">
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center gap-2">
+                            <Download className="h-4 w-4 text-sky-500" />
+                            <div>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase">Bajada</p>
+                                <p className="text-sm font-bold text-slate-700">{plan.downloadSpeed} Mega</p>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center gap-2">
+                            <Upload className="h-4 w-4 text-emerald-500" />
+                            <div>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase">Subida</p>
+                                <p className="text-sm font-bold text-slate-700">{plan.uploadSpeed} Mega</p>
+                            </div>
+                        </div>
                     </div>
-                    <div className="pt-4 mt-4 border-t border-slate-100">
-                        <Skeleton className="h-8 w-32" />
+
+                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                        <div>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Precio Final</p>
+                            <div className="flex items-baseline gap-2">
+                                <p className="text-2xl font-bold text-slate-900 font-heading text-primary">
+                                    ${plan.price?.toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button variant="ghost" size="icon" className="text-slate-400 hover:text-primary" onClick={() => { setPlanToEdit(plan); setIsPlanModalOpen(true); }}>
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="text-slate-400 hover:text-rose-600" onClick={() => handleDeleteClick(plan, 'plan')}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            ))}
-        </div>
-    );
+                </CardContent>
+            </Card>
+        );
+    };
+
+    // Filter Logic
+    const filteredServices = services.filter(s => {
+        if (searchTerm && !s.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+        if (filterType !== 'all' && s.type !== filterType) return false;
+        return true;
+    }).sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+
+    const filteredPlans = plans.filter(p => {
+        if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+        return true;
+    }).sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Header Principal */}
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                        {viewMode === 'services' ? 'Catálogo de Servicios' : 'Gestión de Presupuestos'}
+                        {viewMode === 'services' ? 'Catálogo de Servicios' : 'Catálogo de Planes'}
                     </h1>
                     <p className="text-slate-500 mt-1">
-                        {viewMode === 'services' ? 'Gestiona tus productos individuales.' : 'Crea conjuntos de servicios predefinidos.'}
+                        {viewMode === 'services' ? 'Gestiona tus productos o ítems adicionales.' : 'Gestiona tus planes de internet.'}
                     </p>
                 </div>
-
                 <div className="flex gap-3">
-                    {/* View Switcher */}
                     <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
-                        <button
-                            onClick={() => { setViewMode('services'); setIsGrouped(false); }}
-                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'services' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
+                        <button onClick={() => setViewMode('services')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'services' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                             <LayoutGrid className="h-4 w-4" /> Servicios
                         </button>
-                        <button
-                            onClick={() => { setViewMode('budgets'); setIsGrouped(false); }}
-                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'budgets' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <Layers className="h-4 w-4" /> Presupuestos
+                        <button onClick={() => setViewMode('plans')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'plans' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            <Wifi className="h-4 w-4" /> Planes
                         </button>
                     </div>
-
-                    {/* Action Button */}
                     <Button
-                        onClick={() => viewMode === 'services' ? handleOpenNewService() : handleOpenNewPackage()}
+                        onClick={() => viewMode === 'services' ? setIsServiceModalOpen(true) : setIsPlanModalOpen(true)}
                         className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 active:scale-95 transition-all w-[220px] justify-center"
                     >
-                        <Plus className="h-4 w-4" /> {viewMode === 'services' ? 'Nuevo Servicio' : 'Nuevo Presupuesto'}
+                        <Plus className="h-4 w-4" /> {viewMode === 'services' ? 'Nuevo Servicio' : 'Nuevo Plan'}
                     </Button>
                 </div>
             </div>
 
             {/* Modals */}
-            <CreateServiceModal
-                isOpen={isServiceModalOpen}
-                onClose={() => setIsServiceModalOpen(false)}
-                onConfirm={handleSaveService}
-                initialData={serviceToEdit}
-            />
-            <CreatePackageModal
-                isOpen={isPackageModalOpen}
-                onClose={() => { setIsPackageModalOpen(false); setPackageToEdit(null); }}
-                onConfirm={handleSavePackage}
-                packageToEdit={packageToEdit}
-            />
-            <ConfirmDeleteModal
-                isOpen={isDeleteModalOpen}
-                onClose={() => setIsDeleteModalOpen(false)}
-                onConfirm={handleConfirmDelete}
-                entityName={itemToDelete?.name}
-                entityType={itemToDelete?.type === 'service' ? 'Servicio' : 'Presupuesto'}
-            />
+            <CreateServiceModal isOpen={isServiceModalOpen} onClose={() => { setIsServiceModalOpen(false); setServiceToEdit(null); }} onConfirm={handleSaveService} initialData={serviceToEdit} />
+            <CreatePlanModal isOpen={isPlanModalOpen} onClose={() => { setIsPlanModalOpen(false); setPlanToEdit(null); }} onConfirm={handleSavePlan} initialData={planToEdit} />
+            <ConfirmDeleteModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onConfirm={handleConfirmDelete} entityName={itemToDelete?.name} entityType={itemToDelete?.type === 'service' ? 'Servicio' : 'Plan'} />
 
-            {/* --- TOOLBAR: SEARCH & FILTERS --- */}
+            {/* Filters */}
             <Card className="border-none shadow-sm bg-white/80 backdrop-blur border border-slate-200/50">
                 <CardContent className="p-4 flex flex-col lg:flex-row gap-4 justify-between items-center">
-
-                    {/* Search */}
                     <div className="relative w-full lg:w-1/3">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder={viewMode === 'services' ? "Buscar servicio..." : "Buscar presupuesto..."}
-                            className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm transition-all outline-none"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        {searchTerm && (
-                            <button onClick={() => setSearchTerm("")} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
-                                <X className="h-4 w-4" />
-                            </button>
-                        )}
+                        <input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
-
-                    {/* Filters & Sort */}
                     <div className="flex gap-3 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 items-center">
-                        {/* Sort */}
+                        {/* Common Sort */}
                         <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1 border border-slate-200">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={toggleSortOrder}
-                                className="h-8 px-2 text-slate-500 hover:text-slate-800"
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="h-8 px-2 text-slate-500 hover:text-slate-800">
                                 {sortOrder === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
                             </Button>
-                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                            <select
-                                className="bg-transparent border-none text-sm text-slate-600 font-medium focus:ring-0 cursor-pointer py-1 pl-1 pr-6"
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                            >
-                                <option value="name">Nombre</option>
-                                <option value="price">Precio</option>
-                            </select>
                         </div>
-
-                        {/* Filter (Only Services) */}
                         {viewMode === 'services' && (
                             <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-1 border border-slate-200 px-3">
                                 <Filter className="h-3.5 w-3.5 text-slate-400" />
-                                <select
-                                    className="bg-transparent border-none text-sm text-slate-600 font-medium focus:ring-0 cursor-pointer py-1"
-                                    value={filterType}
-                                    onChange={(e) => setFilterType(e.target.value)}
-                                >
-                                    <option value="all">Todos los Tipos</option>
+                                <select className="bg-transparent border-none text-sm text-slate-600 font-medium focus:ring-0 cursor-pointer py-1" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                                    <option value="all">Todos</option>
                                     <option value="recurring">Recurrentes</option>
-                                    <option value="unique">Pago Único</option>
+                                    <option value="unique">Únicos</option>
                                 </select>
                             </div>
                         )}
-
-                        {/* Group Toggle (Only Services) */}
-                        {viewMode === 'services' && (
-                            <Button
-                                variant={isGrouped ? "secondary" : "ghost"}
-                                size="sm"
-                                onClick={() => setIsGrouped(!isGrouped)}
-                                className={`gap-2 h-10 border ${isGrouped ? 'bg-primary/10 text-primary border-primary/20' : 'border-slate-200 text-slate-500'}`}
-                            >
-                                <LayoutGrid className="h-4 w-4" />
-                                <span className="hidden sm:inline">Agrupar</span>
-                            </Button>
-                        )}
-
-                        {(searchTerm || filterType !== 'all' || isGrouped || sortBy !== 'name' || sortOrder !== 'asc') && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={clearFilters}
-                                className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 px-2 h-10"
-                                title="Limpiar Filtros"
-                            >
+                        {(searchTerm || filterType !== 'all') && (
+                            <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(''); setFilterType('all'); }} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 px-2 h-10">
                                 <X className="h-4 w-4" />
                             </Button>
                         )}
@@ -489,153 +392,21 @@ export default function ServicesPage() {
                 </CardContent>
             </Card>
 
-            {/* --- CONTENT GRID --- */}
+            {/* Content */}
             {isLoading ? (
-                renderSkeletons()
-            ) : viewMode === 'services' ? (
-                isGrouped ? (
-                    // GROUPED VIEW
-                    <div className="space-y-8">
-                        {/* Recurring Section */}
-                        {getGroupedServices().recurring.length > 0 && (
-                            <div className="space-y-4">
-                                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b border-slate-200 pb-2">
-                                    <Repeat className="h-5 w-5 text-primary" /> Suscripciones Recurrentes
-                                    <Badge variant="secondary" className="ml-auto">{getGroupedServices().recurring.length}</Badge>
-                                </h2>
-                                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                                    {getGroupedServices().recurring.map((s, i) => renderServiceCard(s, i))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* One Time Section */}
-                        {getGroupedServices().one_time.length > 0 && (
-                            <div className="space-y-4">
-                                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b border-slate-200 pb-2">
-                                    <Zap className="h-5 w-5 text-sky-500" /> Pagos Únicos
-                                    <Badge variant="secondary" className="ml-auto">{getGroupedServices().one_time.length}</Badge>
-                                </h2>
-                                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                                    {getGroupedServices().one_time.map((s, i) => renderServiceCard(s, i))}
-                                </div>
-                            </div>
-                        )}
-
-                        {getGroupedServices().recurring.length === 0 && getGroupedServices().one_time.length === 0 && (
-                            <EmptyState
-                                icon={PackageOpen}
-                                title="No se encontraron servicios"
-                                description="No hay servicios que coincidan con los filtros seleccionados."
-                                actionLabel="Limpiar Filtros"
-                                onAction={clearFilters}
-                            />
-                        )}
-                    </div>
-                ) : (
-                    // NORMAL GRID VIEW
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {processedServices.length > 0 ? (
-                            processedServices.map((s, i) => renderServiceCard(s, i))
-                        ) : (
-                            <div className="col-span-full">
-                                <EmptyState
-                                    icon={PackageOpen}
-                                    title="No se encontraron servicios"
-                                    description={searchTerm ? "Intenta con otra búsqueda o limpia los filtros." : "Aún no has creado servicios en el catálogo."}
-                                    actionLabel={searchTerm ? "Limpiar Filtros" : "Crear Nuevo Servicio"}
-                                    onAction={searchTerm ? clearFilters : handleOpenNewService}
-                                />
-                            </div>
-                        )}
-                    </div>
-                )
-            ) : (
-                // BUDGETS VIEW
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {processedBudgets.length > 0 ? (
-                        processedBudgets.map((budget) => (
-                            <Card key={budget.id} className="group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden flex flex-col">
-                                <CardHeader className="pb-3 pt-5 bg-slate-50/50 border-b border-slate-100">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="p-2 bg-primary/10 text-primary rounded-lg">
-                                            <Package className="h-6 w-6" />
-                                        </div>
-                                        <Badge className="bg-primary text-primary-foreground border-none shadow-sm shadow-primary/20">Presupuesto</Badge>
-                                    </div>
-                                    <CardTitle className="text-xl text-slate-800">{budget.name}</CardTitle>
-                                    <p className="text-sm text-slate-500 line-clamp-1">{budget.description}</p>
-                                </CardHeader>
-
-                                <CardContent className="pt-4 flex-1 flex flex-col">
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Incluye:</p>
-                                    <div className="space-y-2 mb-4">
-                                        {/* Mostramos solo los primeros 3 */}
-                                        {budget.services.slice(0, 3).map((s, i) => (
-                                            <div key={i} className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
-                                                <Zap className="h-3 w-3 text-primary" />
-                                                <span className="truncate">{s.name}</span>
-                                            </div>
-                                        ))}
-                                        {/* Indicador de más items */}
-                                        {budget.services.length > 3 && (
-                                            <div className="text-xs font-medium text-slate-500 text-center bg-slate-100 py-1.5 rounded-lg">
-                                                +{budget.services.length - 3} servicios más...
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                                        <div>
-                                            {budget.isCustomPrice && (
-                                                <div className="flex items-center gap-1 mb-0.5">
-                                                    <Badge className="bg-rose-100 text-rose-600 border-none px-1.5 py-0 text-[10px]">Promo</Badge>
-                                                </div>
-                                            )}
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total</p>
-                                            <div className="flex items-baseline gap-2">
-                                                <p className="text-2xl font-bold text-slate-900 font-heading text-primary">
-                                                    ${budget.totalPrice.toLocaleString()}
-                                                </p>
-                                                {budget.isCustomPrice && (
-                                                    <span className="text-xs text-slate-400 line-through">
-                                                        ${budget.services.reduce((sum, s) => sum + s.price, 0).toLocaleString()}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-slate-400 hover:text-rose-600"
-                                                onClick={() => handleDeleteClick(budget, 'presupuesto')}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-slate-400 hover:text-primary"
-                                                onClick={() => handleEditPackage(budget)}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 w-full rounded-xl" />)}
+                </div>
+            ) : (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {viewMode === 'services' ? (
+                        filteredServices.length > 0 ? filteredServices.map((s, i) => renderServiceCard(s, i)) : (
+                            <div className="col-span-full"><EmptyState icon={PackageOpen} title="No hay servicios" description="Crea nuevos servicios para tu catálogo." actionLabel="Nuevo Servicio" onAction={() => setIsServiceModalOpen(true)} /></div>
+                        )
                     ) : (
-                        <div className="col-span-full">
-                            <EmptyState
-                                icon={Layers}
-                                title="No hay presupuestos creados"
-                                description="Crea paquetes de servicios predefinidos para agilizar tus propuestas."
-                                actionLabel="Crear mi primer presupuesto"
-                                onAction={handleOpenNewPackage}
-                            />
-                        </div>
+                        filteredPlans.length > 0 ? filteredPlans.map((p, i) => renderPlanCard(p, i)) : (
+                            <div className="col-span-full"><EmptyState icon={Wifi} title="No hay planes" description="Configura tus planes de internet." actionLabel="Nuevo Plan" onAction={() => setIsPlanModalOpen(true)} /></div>
+                        )
                     )}
                 </div>
             )}
