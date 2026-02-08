@@ -1,25 +1,44 @@
 import { useOutlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
-import { cn } from "../ui/Button";
 import { AnimatePresence, motion } from "framer-motion";
+import { clientConfig } from "../../config/client";
+
+// Algoritmo simple para oscurecer un color HEX
+const darkenColor = (hex, percent) => {
+    let num = parseInt(hex.replace("#", ""), 16),
+        amt = Math.round(2.55 * percent),
+        R = (num >> 16) - amt,
+        B = ((num >> 8) & 0x00FF) - amt,
+        G = (num & 0x0000FF) - amt;
+
+    return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+        (B < 255 ? B < 1 ? 0 : B : 255) * 0x100 +
+        (G < 255 ? G < 1 ? 0 : G : 255)).toString(16).slice(1);
+};
 
 export function MainLayout() {
     const location = useLocation();
     const animatedOutlet = useOutlet();
 
-    return (
-        <div className="flex h-screen w-full bg-gradient-to-br from-primary/30 via-slate-50 to-white overflow-hidden font-sans text-slate-900">
-            {/* Sidebar Area - Fixed width wrapper for the floating sidebar */}
-            <div className="hidden md:block w-72 shrink-0" />
+    // Obtener color primario y generar variante oscura
+    const primaryColor = clientConfig.colors?.primary || "#059669";
+    const darkPrimary = darkenColor(primaryColor, 20); // 20% más oscuro (Sutil)
 
+    return (
+        <div
+            className="flex h-screen w-full overflow-hidden font-sans relative"
+            style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${darkPrimary} 100%)` }}
+        >
+            {/* Sidebar Area */}
             <Sidebar />
 
-            {/* Main Content Area - Transparent & Fluid */}
-            <main className="flex-1 relative flex flex-col m-4 md:ml-0 md:mr-4 overflow-hidden">
+            {/* Main Content Area - Floating Card on Desktop */}
+            <main className="flex-1 flex flex-col m-0 md:my-6 md:mr-6 md:ml-0 md:rounded-2xl bg-slate-50 shadow-2xl overflow-hidden relative transition-all duration-300 z-10">
+
                 {/* Mobile Header (visible only on small screens) */}
-                <div className="md:hidden flex items-center justify-between p-4 border-b border-indigo-100/20 sticky top-0 z-20 backdrop-blur-sm">
-                    <span className="font-heading font-bold text-lg text-slate-900">Vantra Billing</span>
-                    {/* Placeholder for Mobile Menu Trigger */}
+                <div className="md:hidden flex items-center justify-between p-4 border-b border-slate-200 sticky top-0 z-20 bg-white/80 backdrop-blur-sm">
+                    <span className="font-heading font-bold text-lg text-primary">Vantra Billing</span>
+                    {/* Placeholder for Mobile Menu Trigger (Implemented in Sidebar or separate component usually) */}
                 </div>
 
                 {/* Internal Scroll Area */}
@@ -27,11 +46,11 @@ export function MainLayout() {
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={location.pathname}
-                            initial={{ opacity: 0, scale: 0.98, filter: 'blur(5px)' }}
-                            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                            exit={{ opacity: 0, scale: 0.98, filter: 'blur(5px)' }}
-                            transition={{ duration: 0.25, ease: "easeInOut" }}
-                            className="w-full min-h-full space-y-8 p-6 md:p-8"
+                            initial={{ opacity: 0, y: 10, filter: 'blur(5px)' }}
+                            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                            exit={{ opacity: 0, y: -10, filter: 'blur(5px)' }}
+                            transition={{ duration: 0.3, ease: "easeOut" }}
+                            className="w-full min-h-full space-y-8 p-4 md:p-8"
                         >
                             {animatedOutlet}
                         </motion.div>

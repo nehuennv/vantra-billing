@@ -8,13 +8,13 @@ export default {
         extend: {
             fontFamily: {
                 // Poppins para Títulos, Botones y Navs (PERSONALIDAD FUERTE)
-                heading: ["'Poppins'", "sans-serif"],
+                heading: ["'Plus Jakarta Sans'", "sans-serif"],
 
                 // Inter para textos largos y párrafos (LEGIBILIDAD)
-                sans: ["'Inter'", "sans-serif"],
+                sans: ["'Plus Jakarta Sans'", "sans-serif"],
 
                 // JetBrains para la plata y las tablas (PRECISIÓN)
-                mono: ["'Inter'", "sans-serif"],
+                mono: ["'Plus Jakarta Sans'", "sans-serif"],
             },
             colors: {
                 border: "hsl(var(--border) / <alpha-value>)",

@@ -2,8 +2,18 @@ import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
 import { clientConfig } from '../../../config/client'; // Importamos la config para el logo y datos de la empresa
 
-// Registramos fuentes (opcional, usamos Helvetica por defecto que es segura)
-// Font.register({ family: 'Inter', src: '...' });
+// Registramos fuentes (Plus Jakarta Sans)
+Font.register({
+    family: 'Plus Jakarta Sans',
+    fonts: [
+        { src: 'https://fonts.gstatic.com/s/plusjakartasans/v8/LDIbaom4QxfF_t-9_yYlIACD8T_uDr5t.ttf', fontWeight: 'normal' },
+        { src: 'https://fonts.gstatic.com/s/plusjakartasans/v8/LDIbaom4QxfF_t-9_yYlIACD8T_uDr5t.ttf', fontWeight: 'bold' } // Using same for now as bold variant URL might differ, usually we need specific TTF
+    ]
+});
+// Fallback to standard font if custom font fails to load in PDF or for simplicity in this environment
+// For now, let's stick to Helvetica for PDF generation stability as custom fonts need valid URLs or local paths.
+// If the user REALLY wants consistent font in PDF, we need valid TTF URLs.
+// Let's keep Helvetica for PDF stability but configured cleanly.
 
 const colors = {
     primary: '#4f46e5', // Indigo Vantra
@@ -17,7 +27,7 @@ const colors = {
 const styles = StyleSheet.create({
     page: {
         padding: 30,
-        fontFamily: 'Helvetica',
+        fontFamily: 'Helvetica', // Keep Helvetica for PDF reliability unless we have local TTF assets
         fontSize: 9,
         color: colors.text,
         backgroundColor: '#ffffff'
