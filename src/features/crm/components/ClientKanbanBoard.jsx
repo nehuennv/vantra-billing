@@ -34,19 +34,19 @@ export function ClientKanbanBoard({ columns, tasks, onTasksChange, onAddColumn, 
         // Note: 'over.id' is the Column ID because we made the Column droppable
         const droppedColumnId = overId;
 
-        // If dropped in same column, do nothing (sorting not implemented in this simplified version yet)
-        const currentTask = tasks.find(t => t.id === activeId);
-        if (currentTask && currentTask.status === droppedColumnId) return;
+        // Calculate new status
+        // If dropped in same column, do nothing (sorting not implemented)
+        if (active.data.current?.sortable?.containerId === over.id) return;
 
-        // Update Parent State
-        const newTasks = tasks.map(t => {
-            if (t.id === activeId) {
-                return { ...t, status: droppedColumnId };
-            }
-            return t;
-        });
+        // We assume the over.id is the column ID because we drop ON columns
+        // (If sorting was enabled, we'd check if over is a task and get its column)
+        // Simplified for this MVP: Drop on Column
+        const newStatus = over.id;
 
-        onTasksChange(newTasks);
+        const task = tasks.find(t => t.id === activeId);
+        if (task && task.status !== newStatus) {
+            onTasksChange(task.id, newStatus);
+        }
     };
 
     const handleAddColumnLocal = () => {
@@ -73,7 +73,8 @@ export function ClientKanbanBoard({ columns, tasks, onTasksChange, onAddColumn, 
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
         >
-            <div className="h-[calc(100vh-220px)] flex flex-col">
+            {/* Height adjustment to fit in viewport without body scroll */}
+            <div className="h-full flex flex-col">
                 {/* Horizontal Scroll Area */}
                 <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
                     <div className="flex h-full gap-4 px-1 min-w-max">

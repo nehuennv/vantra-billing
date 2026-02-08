@@ -84,9 +84,15 @@ export default function ClientDetailPage() {
             }
 
             // Case 2: Status Update (Partial Update Only)
-            // We send ONLY the status field to avoid validation errors on other fields (e.g. unique headers).
-            // PATCH supports partial updates.
-            await clientAPI.update(id, { status: newStatus });
+            // WORKAROUND: Send FULL payload to prevent data loss due to destructive PATCH
+            const apiBody = adaptClientForApi(updatedClientState);
+
+            // Ensure status fields are correct
+            apiBody.status = newStatus;
+            apiBody.categoria = newStatus;
+            apiBody.internal_code = newStatus;
+
+            await clientAPI.update(id, apiBody);
 
             toast.success("Estado actualizado correctamente");
 
@@ -111,7 +117,16 @@ export default function ClientDetailPage() {
         setClient(prev => ({ ...prev, status: newId }));
 
         try {
-            await clientAPI.update(id, { status: newId });
+            // WORKAROUND: Send FULL payload
+            const updatedClient = { ...client, status: newId };
+            const apiBody = adaptClientForApi(updatedClient);
+
+            apiBody.status = newId;
+            apiBody.categoria = newId;
+            apiBody.internal_code = newId;
+
+            await clientAPI.update(id, apiBody);
+
             toast.success(`Estado "${newTitle}" creado y asignado`);
             setIsAddingStatus(false);
             setNewStatusName("");
@@ -489,15 +504,18 @@ export default function ClientDetailPage() {
         <div className="space-y-6 pb-20 animate-in fade-in duration-300">
 
             {/* --- HEADER --- */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
-                <div className="flex items-center gap-4">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-slate-200 pb-6">
+                <div className="flex items-start gap-4">
                     <Link to="/crm">
-                        <Button variant="outline" size="icon" className="h-10 w-10 rounded-full border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-white shadow-sm">
+                        <Button variant="outline" size="icon" className="h-10 w-10 rounded-full border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-white shadow-sm mt-1">
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
                     </Link>
                     <div>
-                        <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-slate-900 leading-tight">
+                            {client.businessName || client.name}
+                        </h1>
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
                             {/* Status Selector */}
                             <div className="flex items-center gap-2">
                                 {!isAddingStatus ? (
@@ -506,17 +524,17 @@ export default function ClientDetailPage() {
                                             <select
                                                 value={client.status}
                                                 onChange={handleQuickStatusChange}
-                                                className={`appearance-none pl-3 pr-8 py-1 rounded-md text-xs font-bold uppercase tracking-wider border outline-none cursor-pointer transition-colors
+                                                className={`appearance-none pl-3 pr-8 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border outline-none cursor-pointer transition-colors
                                                 ${client.status === 'active'
                                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}
+                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                                             >
                                                 {statusList.map(s => (
                                                     <option key={s.id} value={s.id}>{s.title}</option>
                                                 ))}
                                             </select>
-                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-slate-500">
-                                                <svg className="h-3 w-3 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                                                <svg className="h-3 w-3 fill-current opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
                                             </div>
                                         </div>
                                         <Button
@@ -560,16 +578,17 @@ export default function ClientDetailPage() {
                                 )}
                             </div>
 
-                            {client.category && (
-                                <Badge variant="outline" className="uppercase text-[10px] tracking-wider px-2.5 py-0.5 border-slate-300 text-slate-500">
-                                    {client.category}
-                                </Badge>
+                            <div className="h-4 w-px bg-slate-300 mx-1"></div>
+
+                            <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono text-xs border border-slate-200">
+                                ID: {client.id.toString().substring(0, 8)}
+                            </span>
+
+                            {client.tax_condition && (
+                                <span className="capitalize text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                    {client.tax_condition.replace(/_/g, ' ')}
+                                </span>
                             )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
-                            <span className="bg-slate-100 px-1.5 rounded font-mono text-xs">ID: {client.id.toString().substring(0, 8)}</span>
-                            <span>•</span>
-                            <span className="capitalize">{client.tax_condition?.replace(/_/g, ' ') || 'Consumidor Final'}</span>
                         </div>
                     </div>
                 </div>
@@ -578,11 +597,10 @@ export default function ClientDetailPage() {
                     <Button
                         variant="ghost"
                         onClick={() => setIsEditClientOpen(true)}
-                        className="text-slate-500 hover:text-primary hover:bg-primary/5"
+                        className="text-slate-500 hover:text-primary hover:bg-primary/5 border border-transparent hover:border-slate-200 bg-white"
                     >
                         <Edit className="h-4 w-4 mr-2" />
-
-                        Editar Cliente
+                        Editar
                     </Button>
 
                     {/* Status Toggle Button */}
@@ -590,7 +608,7 @@ export default function ClientDetailPage() {
                         <Button
                             variant="ghost"
                             onClick={() => setDeleteModal({ isOpen: true, type: 'soft' })}
-                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 border border-transparent hover:border-amber-200 bg-white"
                             title="Deshabilitar Cliente"
                         >
                             <Ban className="h-4 w-4 mr-2" />
@@ -600,7 +618,7 @@ export default function ClientDetailPage() {
                         <Button
                             variant="ghost"
                             onClick={() => setDeleteModal({ isOpen: true, type: 'reactivate' })}
-                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-transparent hover:border-emerald-200 bg-white"
                             title="Reactivar Cliente"
                         >
                             <CheckCircleIcon className="h-4 w-4 mr-2" />
@@ -608,11 +626,12 @@ export default function ClientDetailPage() {
                         </Button>
                     )}
 
-                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                    <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
+
                     <Button
                         onClick={handleOpenPreview}
                         disabled={isGenerating || services.length === 0}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-all px-6"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-all px-6 hover:shadow-lg hover:-translate-y-0.5"
                     >
                         {isGenerating ? 'Procesando...' : (
                             <>

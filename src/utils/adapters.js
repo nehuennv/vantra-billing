@@ -27,6 +27,9 @@ export const adaptClient = (apiClient) => {
     // UI Identity Logic:
     const displayName = apiClient.company_name || apiClient.business_name || apiClient.name || 'Sin Nombre';
 
+    // Parse metadata safely
+    const meta = apiClient.metadata || {};
+
     return {
         id: apiClient.id, // UUID
 
@@ -54,9 +57,13 @@ export const adaptClient = (apiClient) => {
         zipCode: apiClient.codigopostal || '',
         province: apiClient.provincia || '',
 
-        // Categorization
-        category: apiClient.categoria || '',
-        status: apiClient.status || 'potential',
+        // Categorization & Status
+        // WORKAROUND: Backend 'status' is read-only/broken.
+        // We use 'categoria' to store the UI Status (Kanban column).
+        // We store the original UI Category in metadata.ui_category.
+        category: meta.ui_category || '',
+        status: apiClient.categoria || apiClient.status || 'potential',
+
         // Strict boolean from API. Default to true if undefined to avoid hiding valid clients.
         is_active: (apiClient.is_active === true || apiClient.is_active === 1 || apiClient.is_active === 'true') ?? true,
 
@@ -70,7 +77,7 @@ export const adaptClient = (apiClient) => {
         // Notes / Metadata
         obs: stripHtml(apiClient.observacion || ''),
         internalObs: stripHtml(apiClient.obsinterna || ''),
-        metadata: apiClient.metadata || {},
+        metadata: meta,
 
         created_at: apiClient.created_at || new Date().toISOString()
     };
@@ -91,14 +98,22 @@ export const adaptClientForApi = (uiData) => {
         codigopostal: uiData.zipCode,
         provincia: uiData.province,
 
-        categoria: uiData.category,
+        // Categorization & Status Workaround
+        // We map UI Status -> Backend Categoria
+        // We map UI Category -> Backend Metadata.ui_category
+        categoria: uiData.status, // Store Kanban Status here
+        metadata: {
+            ...(uiData.metadata || {}),
+            ui_category: uiData.category // Store original Category here
+        },
 
         // Contacto
         nombre: uiData.name || uiData.contactName,
         dni: uiData.dni,
 
-        // Status
+        // Status (Sent for completeness, though likely ignored)
         status: uiData.status,
+        internal_code: uiData.status, // Keep legacy fallback just in case
         is_active: uiData.is_active,
 
         // Notas

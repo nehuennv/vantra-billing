@@ -1,0 +1,9 @@
+[2026-02-08T21:59:06.393Z] Starting Data Loss Reproduction...
+Using Existing Client ID: 583abbaa-401a-41e5-8f8e-bec120d5a7d4
+Updating address to: Calle Falsa 123 1770587947402
+PATCH 1 Response: {"status":"success","message":"Cliente actualizado exitosamente","data":{"id":"583abbaa-401a-41e5-8f8e-bec120d5a7d4","company_name":"Test Status 20-91390272-7","tax_id":"20-91390272-7","tax_condition":"responsable_inscripto","email_billing":"status_test_20-91390272-7@example.com","phone_whatsapp":null,"address":"Calle Falsa 123 1770587947402","status":"CONTACTADO","is_active":true,"current_balance":"0.00","created_at":"2026-02-08T20:56:25.300Z","updated_at":"2026-02-08T21:59:11.184Z","nombre":null,"dni":null,"contacto":null,"observacion":null,"obsinterna":null,"categoria":null,"localidad":"Springfield","codigopostal":null,"provincia":null,"idlista":null,"lista":null,"saldo":null,"metadata":{}}}
+Address after update: Calle Falsa 123 1770587947402
+Updating status to: facturado (PRESERVING DATA)
+Address after status change: Calle Falsa 123 1770587947402
+Localidad after status change: Springfield
+Address persisted correctly.

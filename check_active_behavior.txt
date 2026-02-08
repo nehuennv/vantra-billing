@@ -1,0 +1,25 @@
+[2026-02-08T21:22:35.627Z] Checking is_active behavior...
+
+Testing NO PARAM (Default) (https://gaston-backendmicroservice.toooti.easypanel.host/api/v1/clients?limit=5&)...
+Count: 5
+- ID: 583abbaa-401a-41e5-8f8e-bec120d5a7d4, is_active: true, status: CONTACTADO
+- ID: 1d8325c8-829c-410b-b983-9c0cba241e6c, is_active: false, status: null
+- ID: f8a3bdaf-75de-44a9-acfe-9b245473fb03, is_active: true, status: null
+- ID: ffdaa03d-4f70-487c-8fe8-6077c0cec78e, is_active: true, status: null
+- ID: fd76e27a-d4b0-4eec-9e09-20897b9d83e2, is_active: true, status: null
+
+Testing is_active=true (https://gaston-backendmicroservice.toooti.easypanel.host/api/v1/clients?limit=5&is_active=true)...
+Count: 5
+- ID: 583abbaa-401a-41e5-8f8e-bec120d5a7d4, is_active: true, status: CONTACTADO
+- ID: 1d8325c8-829c-410b-b983-9c0cba241e6c, is_active: false, status: null
+- ID: f8a3bdaf-75de-44a9-acfe-9b245473fb03, is_active: true, status: null
+- ID: ffdaa03d-4f70-487c-8fe8-6077c0cec78e, is_active: true, status: null
+- ID: fd76e27a-d4b0-4eec-9e09-20897b9d83e2, is_active: true, status: null
+
+Testing is_active=false (https://gaston-backendmicroservice.toooti.easypanel.host/api/v1/clients?limit=5&is_active=false)...
+Count: 5
+- ID: 583abbaa-401a-41e5-8f8e-bec120d5a7d4, is_active: true, status: CONTACTADO
+- ID: 1d8325c8-829c-410b-b983-9c0cba241e6c, is_active: false, status: null
+- ID: f8a3bdaf-75de-44a9-acfe-9b245473fb03, is_active: true, status: null
+- ID: ffdaa03d-4f70-487c-8fe8-6077c0cec78e, is_active: true, status: null
+- ID: fd76e27a-d4b0-4eec-9e09-20897b9d83e2, is_active: true, status: null

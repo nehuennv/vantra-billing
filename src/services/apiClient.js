@@ -52,14 +52,17 @@ export const clientAPI = {
     },
 
     getOne: async (id) => {
-        // Fallback: The direct endpoint /v1/clients/:id seems to be missing (404).
+        // Fallback: The direct endpoint /v1/clients/:id is confirmed missing (404).
         // We fetch the list and find the client client-side.
+        // We add a timestamp to try and bypass cache.
         const query = new URLSearchParams({ _t: Date.now() }).toString();
         const response = await request(`/v1/clients?${query}`, 'GET');
         const list = Array.isArray(response) ? response : (response.data || []);
-        const found = list.find(c => c.id === id);
 
-        if (!found) throw new Error("Client not found");
+        // Ensure lenient comparison (String vs Number)
+        const found = list.find(c => String(c.id) === String(id));
+
+        if (!found) throw new Error("Client not found in list");
         return found;
     },
 
