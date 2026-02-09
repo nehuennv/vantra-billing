@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, FileText, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw, Download, Plus, X } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw, Download, Plus, X, Layers } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -144,6 +144,10 @@ export default function ClientDetailPage() {
     });
 
 
+    // New: State for Deleting Combo
+    const [comboToDelete, setComboToDelete] = useState(null);
+
+
     // New: State for Editing/Deleting Service
     const [serviceToEdit, setServiceToEdit] = useState(null);
     const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
@@ -169,7 +173,15 @@ export default function ClientDetailPage() {
                         rawServices = svcResponse;
                     } else if (svcResponse && typeof svcResponse === 'object') {
                         // Extract from grouped_services (Combos)
-                        const fromGroups = (svcResponse.grouped_services || []).flatMap(g => g.items || []);
+                        const fromGroups = (svcResponse.grouped_services || []).flatMap(g =>
+                            (g.items || []).map(item => ({
+                                ...item,
+                                _comboData: {
+                                    id: g.combo_id,
+                                    name: g.combo_name
+                                }
+                            }))
+                        );
                         // Extract individual_services
                         const individuals = svcResponse.individual_services || [];
                         rawServices = [...fromGroups, ...individuals];
@@ -183,7 +195,9 @@ export default function ClientDetailPage() {
                         price: Number(s.unit_price || s.price), // V2 uses unit_price
                         type: 'recurring', // Default
                         icon: s.icon || 'Wifi',
-                        origin_combo_id: s.origin_combo_id // Keep track of origin
+                        icon: s.icon || 'Wifi',
+                        origin_combo_id: s.origin_combo_id, // Keep track of origin
+                        _comboData: s._comboData // Pass through combo metadata
                     }));
                     setServices(adaptedServices);
 
@@ -220,29 +234,75 @@ export default function ClientDetailPage() {
             const deleted = services.filter(o => !newActiveServices.find(n => n.id === o.id));
             console.log("Items identified as DELETED:", deleted);
 
-            // Process Adds
-            for (const item of added) {
-                console.log("Processing Add:", item);
-                // We use assignToClient which takes (clientId, catalogItemId)
-                await servicesAPI.assignToClient(client.id, item.catalog_item_id);
+            // Process Adds - Grouped Logic for Combos
+            const addedGroups = {};
+            const addedSingles = [];
+
+            added.forEach(item => {
+                if (item.origin_combo_id) {
+                    if (!addedGroups[item.origin_combo_id]) {
+                        addedGroups[item.origin_combo_id] = [];
+                    }
+                    addedGroups[item.origin_combo_id].push(item);
+                } else {
+                    addedSingles.push(item);
+                }
+            });
+
+            // 1. Process Combo Groups (Use /bundle endpoint)
+            for (const [comboId, items] of Object.entries(addedGroups)) {
+                console.log(`Processing Combo Add: ${comboId} (${items.length} items)`);
+                // Use specific endpoint to ensure backend links items to combo
+                await servicesAPI.assignComboToClient(client.id, comboId);
+            }
+
+            // 2. Process Singles (Use /single endpoint)
+            for (const item of addedSingles) {
+                console.log("Processing Single Add:", item);
+                await servicesAPI.assignToClient(client.id, item.catalog_item_id, {
+                    price: item.price,
+                    origin_combo_id: null
+                });
             }
 
             // Process Deletes
             for (const item of deleted) {
                 console.log("Processing Delete:", item.id);
-                // We use remove which takes (serviceInstanceId)
                 await servicesAPI.remove(item.id);
             }
 
-            // Reload to sync
+            // Reload to sync - ROBUST PARSING FOR V1/V2
             const svcResponse = await servicesAPI.getByClient(client.id);
-            const adaptedServices = (svcResponse || []).map(s => ({
+
+            let rawServices = [];
+            if (Array.isArray(svcResponse)) {
+                rawServices = svcResponse;
+            } else if (svcResponse && typeof svcResponse === 'object') {
+                // Extract from grouped_services (Combos)
+                const fromGroups = (svcResponse.grouped_services || []).flatMap(g =>
+                    (g.items || []).map(item => ({
+                        ...item,
+                        _comboData: {
+                            id: g.combo_id,
+                            name: g.combo_name
+                        }
+                    }))
+                );
+                // Extract individual_services
+                const individuals = svcResponse.individual_services || [];
+                rawServices = [...fromGroups, ...individuals];
+            }
+
+            const adaptedServices = rawServices.map(s => ({
                 id: s.id,
                 catalog_item_id: s.catalog_item_id,
                 name: s.name,
-                price: Number(s.price),
+                price: Number(s.unit_price || s.price),
                 type: 'recurring',
-                icon: s.icon || 'Wifi'
+                icon: s.icon || 'Wifi',
+                icon: s.icon || 'Wifi',
+                origin_combo_id: s.origin_combo_id,
+                _comboData: s._comboData
             }));
             setServices(adaptedServices);
             setIsBudgetManagerOpen(false);
@@ -463,6 +523,30 @@ export default function ClientDetailPage() {
         setDeleteModal({ isOpen: false, type: null });
     };
 
+    const handleDeleteCombo = async () => {
+        if (!comboToDelete) return;
+
+        const promise = async () => {
+            // Find all services in this combo
+            const itemsToDelete = services.filter(s => s.origin_combo_id === comboToDelete.id);
+
+            // Delete sequentially
+            for (const item of itemsToDelete) {
+                await servicesAPI.remove(item.id);
+            }
+
+            // Update local state (remove all items with this origin_combo_id)
+            setServices(prev => prev.filter(s => s.origin_combo_id !== comboToDelete.id));
+        };
+
+        toast.promise(promise(), {
+            loading: 'Eliminando combo...',
+            success: 'Combo y servicios eliminados',
+            error: 'Error al eliminar combo'
+        });
+        setComboToDelete(null);
+    };
+
     if (!client) return (
         <PageTransition className="space-y-6 pb-20">
             {/* Header Skeleton */}
@@ -595,37 +679,42 @@ export default function ClientDetailPage() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <Button
-                        variant="ghost"
-                        onClick={() => setIsEditClientOpen(true)}
-                        className="text-slate-500 hover:text-primary hover:bg-primary/5 border border-transparent hover:border-slate-200 bg-white"
-                    >
-                        <Edit className="h-4 w-4 mr-2" />
-                        Editar
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsEditClientOpen(true)}
+                            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-sm"
+                        >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Editar Cliente
+                        </Button>
 
-                    {/* Status Toggle Button */}
-                    {client.is_active ? (
-                        <Button
-                            variant="ghost"
-                            onClick={() => setDeleteModal({ isOpen: true, type: 'soft' })}
-                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 border border-transparent hover:border-amber-200 bg-white"
-                            title="Deshabilitar Cliente"
-                        >
-                            <Ban className="h-4 w-4 mr-2" />
-                            <span className="hidden sm:inline">Deshabilitar</span>
-                        </Button>
-                    ) : (
-                        <Button
-                            variant="ghost"
-                            onClick={() => setDeleteModal({ isOpen: true, type: 'reactivate' })}
-                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-transparent hover:border-emerald-200 bg-white"
-                            title="Reactivar Cliente"
-                        >
-                            <CheckCircleIcon className="h-4 w-4 mr-2" />
-                            <span className="hidden sm:inline">Reactivar</span>
-                        </Button>
-                    )}
+                        {/* Status Toggle Button */}
+                        {client.is_active ? (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDeleteModal({ isOpen: true, type: 'soft' })}
+                                className="h-9 border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800 hover:border-rose-300 shadow-sm"
+                                title="Deshabilitar Cliente"
+                            >
+                                <Ban className="h-4 w-4 mr-2" />
+                                <span className="hidden sm:inline">Deshabilitar</span>
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDeleteModal({ isOpen: true, type: 'reactivate' })}
+                                className="h-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 shadow-sm"
+                                title="Reactivar Cliente"
+                            >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                <span>Reactivar</span>
+                            </Button>
+                        )}
+                    </div>
 
                     <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
 
@@ -642,7 +731,8 @@ export default function ClientDetailPage() {
                         )}
                     </Button>
                 </div>
-            </div >
+            </div>
+
 
             {/* --- LAYOUT GRID --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -780,53 +870,144 @@ export default function ClientDetailPage() {
                             </Button>
                         </CardHeader>
 
-                        <div className="divide-y divide-slate-100 bg-white">
+                        <div className="bg-white p-4 space-y-4">
                             {services.length > 0 ? (
-                                services.map((service, index) => {
-                                    const IconComponent = ICON_MAP[service.icon] || Repeat;
+                                (() => {
+                                    // Group Items Logic
+                                    const groups = {};
+                                    const singles = [];
+
+                                    services.forEach(s => {
+                                        if (s.origin_combo_id && s.origin_combo_id !== 'null') {
+                                            if (!groups[s.origin_combo_id]) {
+                                                groups[s.origin_combo_id] = {
+                                                    id: s.origin_combo_id,
+                                                    name: s._comboData?.name || 'Pack',
+                                                    items: []
+                                                };
+                                            }
+                                            groups[s.origin_combo_id].items.push(s);
+                                        } else {
+                                            singles.push(s);
+                                        }
+                                    });
+
+                                    // Render Logic
                                     return (
-                                        <div key={service.id || index} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
-                                                    <IconComponent className="h-4 w-4" />
+                                        <>
+                                            {/* 1. Combos */}
+                                            {Object.values(groups).map((group) => {
+                                                const groupTotal = group.items.reduce((sum, i) => sum + i.price, 0);
+                                                return (
+                                                    <div key={group.id} className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden mb-4 transition-all hover:border-slate-300 hover:shadow-sm group/card">
+                                                        {/* Header */}
+                                                        <div className="px-4 py-3 bg-slate-100/50 flex justify-between items-center border-b border-slate-200">
+                                                            <div className="flex items-center gap-2">
+                                                                <Layers className="h-4 w-4 text-primary" />
+                                                                <span className="font-bold text-slate-800 text-sm">{group.name}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="font-bold text-slate-700 text-sm">
+                                                                    ${groupTotal.toLocaleString()}
+                                                                </span>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-6 w-6 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-opacity opacity-0 group-hover/card:opacity-100"
+                                                                    onClick={() => setComboToDelete({ id: group.id, name: group.name })}
+                                                                    title="Eliminar Combo completo"
+                                                                >
+                                                                    <Trash className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Items */}
+                                                        <div className="divide-y divide-slate-200/50">
+                                                            {group.items.map((service, idx) => {
+                                                                const IconComponent = ICON_MAP[service.icon] || Repeat;
+                                                                return (
+                                                                    <div key={service.id || idx} className="px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <IconComponent className="h-4 w-4 text-slate-400" />
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-sm font-medium text-slate-700">{service.name}</span>
+                                                                                <span className="text-[10px] text-primary/70 uppercase tracking-wider font-bold">Incluido en Pack</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-3">
+                                                                            <span className="text-sm font-medium text-slate-600">${service.price.toLocaleString()}</span>
+                                                                            {/* Single Delete inside Combo? Maybe risky if it breaks ratio. Let's allow it but it stays in group for now until refresh */}
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-6 w-6 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-full"
+                                                                                onClick={() => setServiceToDelete(service)}
+                                                                            >
+                                                                                <Trash className="h-3.5 w-3.5" />
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* 2. Singles */}
+                                            {singles.length > 0 && (
+                                                <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
+                                                    {singles.map((service, index) => {
+                                                        const IconComponent = ICON_MAP[service.icon] || Repeat;
+                                                        return (
+                                                            <div key={service.id || index} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group bg-white">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
+                                                                        <IconComponent className="h-4 w-4" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="font-semibold text-slate-900 text-sm">{service.name}</p>
+                                                                        <p className="text-xs text-slate-500">
+                                                                            {service.type === 'recurring' ? 'Recurrente Mensual' : 'Pago Único'}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right flex items-center gap-4">
+                                                                    <p className="font-bold text-slate-900">${service.price.toLocaleString()}</p>
+                                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/5"
+                                                                            onClick={() => {
+                                                                                setServiceToEdit({
+                                                                                    ...service,
+                                                                                    type: 'recurring'
+                                                                                });
+                                                                                setIsServiceModalOpen(true);
+                                                                            }}
+                                                                        >
+                                                                            <Edit className="h-4 w-4" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                                                            onClick={() => setServiceToDelete(service)}
+                                                                        >
+                                                                            <Trash className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                                <div>
-                                                    <p className="font-semibold text-slate-900 text-sm">{service.name}</p>
-                                                    <p className="text-xs text-slate-500">
-                                                        {service.type === 'recurring' ? 'Recurrente Mensual' : 'Pago Único'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right flex items-center gap-4">
-                                                <p className="font-bold text-slate-900">${service.price.toLocaleString()}</p>
-                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/5"
-                                                        onClick={() => {
-                                                            setServiceToEdit({
-                                                                ...service,
-                                                                type: 'recurring' // Force type for modal compatibility if missing
-                                                            });
-                                                            setIsServiceModalOpen(true);
-                                                        }}
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                                                        onClick={() => setServiceToDelete(service)}
-                                                    >
-                                                        <Trash className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
+                                            )}
+                                        </>
                                     );
-                                })
+                                })()
                             ) : (
                                 <div className="p-8 text-center text-slate-500 text-sm">
                                     No hay servicios activos.
@@ -1037,6 +1218,16 @@ export default function ClientDetailPage() {
                 variant="destructive"
             />
 
+            <DeleteConfirmationModal
+                isOpen={!!comboToDelete}
+                onClose={() => setComboToDelete(null)}
+                onConfirm={handleDeleteCombo}
+                title="Eliminar Combo"
+                description={`¿Estás seguro de que deseas eliminar el combo "${comboToDelete?.name}" y todos sus servicios incluidos?`}
+                confirmText="Eliminar Todo"
+                variant="destructive"
+            />
+
             <CreateServiceModal
                 isOpen={isServiceModalOpen}
                 onClose={() => {
@@ -1066,6 +1257,6 @@ export default function ClientDetailPage() {
                     setServiceToEdit(null);
                 }}
             />
-        </PageTransition>
+        </PageTransition >
     );
 }

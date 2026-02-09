@@ -42,7 +42,7 @@ export function MainLayout() {
                 </div>
 
                 {/* Internal Scroll Area */}
-                <div className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar p-4 md:p-6 lg:p-8">
+                <div className={`flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar p-4 md:p-6 lg:p-8 ${location.pathname === '/crm' ? '!pb-0' : ''}`}>
                     <AnimatePresence mode="wait">
                         {/* Wrapper div with key ensures content remounts/animates on route change while Sidebar stays put */}
                         <div key={location.pathname} className="h-full w-full">

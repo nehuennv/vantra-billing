@@ -55,14 +55,13 @@ const adaptCombo = (apiData) => {
     return {
         id: apiData.id,
         name: apiData.name,
-        // Calculate price from items if not provided (though API might provide it, assuming sum of items or specific logic)
-        // Since V2 Combos schema usually implies a bundle, let's assume we sum items or show "Varios"
         items: apiData.items || [],
-        price: 0, // Placeholder, normally calculated or from API if it has override
+        price: Number(apiData.price || apiData.default_price) || 0,
         description: `${(apiData.items || []).length} ítems`,
-        isActive: true // Combos usually active if returned
+        isActive: apiData.is_active !== false // Default to true if undefined, but respect false
     };
 };
+
 
 const ICON_MAP = {
     'Wifi': Wifi, 'Zap': Zap, 'Globe': Globe, 'Monitor': Monitor,
@@ -70,9 +69,22 @@ const ICON_MAP = {
     'Cloud': Cloud, 'Shield': Shield,
 };
 
+import { useSearchParams } from 'react-router-dom';
+
+// ...
+
 export default function ServicesPage() {
-    // View Mode: 'catalog' | 'combos'
-    const [viewMode, setViewMode] = useState('catalog');
+    // View Mode: 'catalog' | 'combos' - synced with URL
+    const [searchParams, setSearchParams] = useSearchParams();
+    const viewMode = searchParams.get('view') || 'catalog';
+
+    const setViewMode = (mode) => {
+        setSearchParams(prev => {
+            prev.set('view', mode);
+            return prev;
+        }, { replace: true });
+    };
+
     const [searchTerm, setSearchTerm] = useState("");
 
     // --- Options State ---
@@ -160,29 +172,28 @@ export default function ServicesPage() {
 
     // Save Combo
     const handleSaveCombo = async (formData) => {
-        // formData: { name, items: [{ catalog_item_id, quantity }] }
+        // formData: { id, name, items: [{ catalog_item_id, quantity }], price }
         const payload = {
             name: formData.name,
-            items: formData.items // Must be [{ catalog_item_id, quantity }]
+            items: formData.items,
+            price: formData.price // Send price override (0 if automatic)
         };
 
-        // TODO: Update logic for Combos not fully defined in V2 prompt (only create),
-        // assuming we can create only for now or recreating.
         const promise = async () => {
-            // Basic Check if ID exists (if we add update support later)
             if (formData.id) {
-                // If update endpoint existed
-                toast.error("Edición de combos no implementada en API V2 aún.");
-                return;
+                // Update
+                await combosAPI.update(formData.id, payload);
+            } else {
+                // Create
+                await combosAPI.create(payload);
             }
-            await combosAPI.create(payload);
             await refreshData();
         };
 
         toast.promise(promise(), {
-            loading: 'Creando combo...',
-            success: 'Combo creado',
-            error: 'Error al crear combo'
+            loading: formData.id ? 'Actualizando combo...' : 'Creando combo...',
+            success: formData.id ? 'Combo actualizado' : 'Combo creado',
+            error: 'Error al guardar combo'
         });
         setIsComboModalOpen(false);
         setItemToEdit(null);
@@ -201,11 +212,7 @@ export default function ServicesPage() {
             if (itemToDelete.type === 'catalog') {
                 await catalogAPI.delete(itemToDelete.id);
             } else {
-                // Combos delete endpoint not explicitly in prompt "TASKS", assuming similar REST pattern or not supported
-                // If not supported, we might just hide it in UI. Prompt said "Create combosAPI -> getAll, create".
-                // It didn't mention delete. I will assume standard REST or warn user.
-                // For now, let's try calling a standard delete endpoint if it existed, or just simulate success to clean UI
-                console.warn("Delete Combo not strictly defined in plan. Skipping API call.");
+                await combosAPI.delete(itemToDelete.id);
             }
             await refreshData();
         };
@@ -219,7 +226,68 @@ export default function ServicesPage() {
         setItemToDelete(null);
     };
 
-    // --- Render Helpers ---
+    // ...
+
+    // ADDED: Render Helper for Combo Card Edit Button
+
+    const renderComboCard = (combo) => {
+        // Calculate effective price: Use override if > 0, else sum items
+        const effectivePrice = combo.price > 0
+            ? combo.price
+            : combo.items?.reduce((sum, it) => {
+                const catItem = catalogItems.find(c => c.id === it.catalog_item_id);
+                return sum + ((catItem?.price || 0) * (it.quantity || 1));
+            }, 0);
+
+        return (
+            <Card key={combo.id} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
+                <CardHeader className="pb-3 pt-5 flex flex-row items-start justify-between space-y-0">
+                    <div className="p-2.5 rounded-xl bg-slate-50 text-slate-600 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                        <Package className="h-6 w-6" />
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <h3 className="font-heading font-bold text-lg text-slate-900 mb-1 group-hover:text-primary transition-colors">{combo.name}</h3>
+                    <p className="text-sm text-slate-500 mb-4">
+                        Incluye {combo.items?.length || 0} ítems
+                    </p>
+
+                    {/* List Preview */}
+                    <div className="space-y-1 mb-4">
+                        {combo.items?.slice(0, 3).map((it, idx) => {
+                            const catalogItem = catalogItems.find(c => c.id === it.catalog_item_id);
+                            return (
+                                <div key={idx} className="flex items-center gap-2 text-xs text-slate-600">
+                                    <div className="w-1 h-1 rounded-full bg-primary/60" />
+                                    <span>{it.quantity}x {catalogItem?.name || 'Ítem desconocido'}</span>
+                                </div>
+                            );
+                        })}
+                        {(combo.items?.length || 0) > 3 && <p className="text-xs text-slate-400 pl-3">...</p>}
+                    </div>
+
+                    <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
+                        <div>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Precio Paquete</p>
+                            <div className="flex items-baseline gap-1">
+                                <p className="text-xl font-bold text-slate-900 font-heading">${effectivePrice.toLocaleString()}</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => { setItemToEdit(combo); setIsComboModalOpen(true); }} className="h-8 w-8 p-0 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg">
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(combo, 'combo')} className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg">
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    };
+
+    // ...
 
     const renderCatalogCard = (item) => {
         const IconComponent = ICON_MAP[item.icon] || Zap;
@@ -259,53 +327,14 @@ export default function ServicesPage() {
             </Card>
         );
     };
-
-    const renderComboCard = (combo) => {
-        return (
-            <Card key={combo.id} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
-                <CardHeader className="pb-3 pt-5 flex flex-row items-start justify-between space-y-0">
-                    <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-                        <Package className="h-6 w-6" />
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <h3 className="font-heading font-bold text-lg text-slate-900 mb-1">{combo.name}</h3>
-                    <p className="text-sm text-slate-500 mb-4">
-                        Incluye {combo.items?.length || 0} ítems
-                    </p>
-
-                    {/* List Preview */}
-                    <div className="space-y-1 mb-4">
-                        {combo.items?.slice(0, 3).map((it, idx) => (
-                            <div key={idx} className="flex items-center gap-2 text-xs text-slate-600">
-                                <div className="w-1 h-1 rounded-full bg-slate-400" />
-                                <span>{it.quantity}x (ID: {it.catalog_item_id})</span>
-                            </div>
-                        ))}
-                        {(combo.items?.length || 0) > 3 && <p className="text-xs text-slate-400 pl-3">...</p>}
-                    </div>
-
-                    <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
-                        <div className="flex-1"></div>
-                        <div className="flex gap-1">
-                            {/* Combos Edit/Delete usually more complex or restricted */}
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(combo, 'combo')} className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg">
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    };
-
-    // Filter Logic
     const filteredCatalog = catalogItems.filter(s => {
+        if (s.isActive === false) return false; // Hide archived/deleted items
         if (searchTerm && !s.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
         return true;
     }).sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
 
     const filteredCombos = combos.filter(c => {
+        if (!c.isActive) return false; // Hide archived/deleted combos
         if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
         return true;
     }).sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
@@ -327,13 +356,13 @@ export default function ServicesPage() {
                         <button onClick={() => setViewMode('catalog')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'catalog' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                             <LayoutGrid className="h-4 w-4" /> Productos
                         </button>
-                        <button onClick={() => setViewMode('combos')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'combos' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <button onClick={() => setViewMode('combos')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'combos' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                             <Package className="h-4 w-4" /> Combos
                         </button>
                     </div>
                     <Button
                         onClick={() => viewMode === 'catalog' ? setIsServiceModalOpen(true) : setIsComboModalOpen(true)}
-                        className={`gap-2 text-white shadow-lg active:scale-95 transition-all w-[200px] justify-center ${viewMode === 'catalog' ? 'bg-primary hover:bg-primary/90 shadow-primary/20' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20'}`}
+                        className={`gap-2 text-white shadow-lg active:scale-95 transition-all w-[200px] justify-center bg-primary hover:bg-primary/90 shadow-primary/20`}
                     >
                         <Plus className="h-4 w-4" /> {viewMode === 'catalog' ? 'Nuevo Ítem' : 'Nuevo Combo'}
                     </Button>
@@ -354,6 +383,7 @@ export default function ServicesPage() {
                 onConfirm={handleSaveCombo}
                 // We pass catalog items so the modal can show the checklist
                 catalogItems={catalogItems}
+                initialData={itemToEdit}
             />
 
             <ConfirmDeleteModal

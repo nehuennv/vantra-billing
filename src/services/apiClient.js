@@ -164,6 +164,14 @@ export const combosAPI = {
     create: (data) => {
         // data: { name, items: [{ catalog_item_id, quantity }] }
         return request('/v1/combos', 'POST', data);
+    },
+
+    update: (id, data) => {
+        return request(`/v1/combos/${id}`, 'PATCH', data);
+    },
+
+    delete: (id) => {
+        return request(`/v1/combos/${id}`, 'DELETE');
     }
 };
 
@@ -175,19 +183,34 @@ export const servicesAPI = {
     },
 
     // Assign a single catalog item to a client
-    assignToClient: (clientId, catalogItemId, overridePrice = null) => {
+    assignToClient: (clientId, catalogItemId, options = {}) => {
+        // options can be a number (price override legacy) or an object { price, origin_combo_id }
         const payload = { catalog_item_id: catalogItemId };
-        if (overridePrice !== null) payload.price = overridePrice;
+
+        if (typeof options === 'number') {
+            payload.price = options;
+        } else if (typeof options === 'object') {
+            if (options.price !== undefined) payload.price = options.price;
+            if (options.origin_combo_id) payload.origin_combo_id = options.origin_combo_id;
+        }
+
         return request(`/v1/services/clients/${clientId}/single`, 'POST', payload);
     },
 
     // Assign a combo/bundle to a client
     assignComboToClient: (clientId, comboId) => {
-        return request(`/v1/services/clients/${clientId}/bundle`, 'POST', { combo_id: comboId });
+        return request(`/v1/services/clients/${clientId}/bundle`, 'POST', { combo_service_id: comboId });
     },
 
     // Remove a service instance from a client
+    // Remove a service instance from a client
     remove: (serviceInstanceId) => {
-        return request(`/v1/services/instances/${serviceInstanceId}`, 'DELETE');
+        // Correct endpoint should likely be /v1/services/:id based on standard REST for this project
+        return request(`/v1/services/${serviceInstanceId}`, 'DELETE');
+    },
+
+    // Alias for compatibility if mockBackend calls .delete()
+    delete: (serviceInstanceId) => {
+        return request(`/v1/services/${serviceInstanceId}`, 'DELETE');
     }
 };

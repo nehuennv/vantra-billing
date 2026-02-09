@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageTransition } from "../../../components/common/PageTransition";
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { DEFAULT_COLUMNS } from '../data/constants';
 import { Card, CardContent } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -16,8 +16,17 @@ import { Skeleton } from "../../../components/ui/Skeleton";
 
 
 export default function CRMPage() {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const viewMode = searchParams.get('view') || 'list'; // Default to 'list' to match original state
+
+    const setViewMode = (mode) => {
+        setSearchParams(prev => {
+            prev.set('view', mode);
+            return prev;
+        }, { replace: true });
+    };
+
     const [searchTerm, setSearchTerm] = useState("");
-    const [viewMode, setViewMode] = useState('list'); // 'list' | 'kanban'
 
     // Lifted State
     const [clients, setClients] = useState([]);
@@ -248,8 +257,8 @@ export default function CRMPage() {
                                 <List className="h-4 w-4" /> Lista
                             </button>
                             <button
-                                onClick={() => setViewMode('kanban')}
-                                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'kanban' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => setViewMode('board')}
+                                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'board' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <LayoutGrid className="h-4 w-4" /> Tablero
                             </button>
@@ -454,7 +463,7 @@ export default function CRMPage() {
                         )}
 
                         {/* VISTA: KANBAN (BOARD) */}
-                        {viewMode === 'kanban' && (
+                        {viewMode === 'board' && (
                             <div className="h-full animate-in fade-in slide-in-from-bottom-2 duration-300">
                                 <ClientKanbanBoard
                                     columns={columns}

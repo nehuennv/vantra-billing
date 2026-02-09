@@ -3,38 +3,66 @@ import { X, Save, Search, Plus, Trash2, Package, Tag, DollarSign, Minus } from '
 import { Button } from '../../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../../components/ui/Dialog';
 
-export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = [] }) {
+export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = [], initialData = null }) {
     const [formData, setFormData] = useState({
         name: '',
-        items: [] // { catalog_item_id, quantity, name, price } - name/price for UI convenience
+        items: [],
+        price: 0 // Manual price override
     });
+    const [isManualPrice, setIsManualPrice] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
 
-    // Reset
+    // Reset / Hydrate
     useEffect(() => {
         if (isOpen) {
-            setFormData({
-                name: '',
-                items: []
-            });
+            if (initialData) {
+                // Formatting for edit
+                // initialData.items is likely [{ catalog_item_id, quantity }] or similar
+                // We need to map them back to UI item format by looking up in catalogItems
+                const uiItems = (initialData.items || []).map(it => {
+                    const catItem = catalogItems.find(c => c.id === it.catalog_item_id);
+                    return {
+                        catalog_item_id: it.catalog_item_id,
+                        quantity: it.quantity,
+                        name: catItem?.name || 'Ítem desconocido',
+                        price: catItem?.price || 0
+                    };
+                });
+
+                // Check if price is manually set (i.e. differs from sum or is explicitly flagged if we had a flag)
+                // For now, if initialData has a price > 0, we assume it might be manual or we default to calculated.
+                // Better approach: if initialData.price > 0, we set manual price ON and use that value.
+                const hasManualPrice = Number(initialData.price) > 0;
+
+                setFormData({
+                    name: initialData.name,
+                    items: uiItems,
+                    price: Number(initialData.price) || 0
+                });
+                setIsManualPrice(hasManualPrice);
+            } else {
+                setFormData({
+                    name: '',
+                    items: [],
+                    price: 0
+                });
+                setIsManualPrice(false);
+            }
         }
-    }, [isOpen]);
+    }, [isOpen, initialData, catalogItems]);
 
     const availableServices = catalogItems.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const handleAddItem = (item) => {
-        // Check if already exists
         const exists = formData.items.find(i => i.catalog_item_id === item.id);
         if (exists) {
-            // Increment
             setFormData(prev => ({
                 ...prev,
                 items: prev.items.map(i => i.catalog_item_id === item.id ? { ...i, quantity: i.quantity + 1 } : i)
             }));
         } else {
-            // Add new
             setFormData(prev => ({
                 ...prev,
                 items: [...prev.items, { catalog_item_id: item.id, quantity: 1, name: item.name, price: item.price }]
@@ -55,7 +83,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
             items: prev.items.map(i => {
                 if (i.catalog_item_id === itemId) {
                     const newQ = i.quantity + delta;
-                    if (newQ <= 0) return null; // Remove if 0
+                    if (newQ <= 0) return null;
                     return { ...i, quantity: newQ };
                 }
                 return i;
@@ -63,15 +91,17 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
         }));
     };
 
-    // Calculate sum of services for display (though Combo price might be different in V2, we show sum as reference)
-    const servicesTotal = formData.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+    // Calculate sum
+    const servicesTotal = formData.items.reduce((sum, i) => sum + ((i.price || 0) * i.quantity), 0);
+    const finalPrice = isManualPrice ? formData.price : servicesTotal;
 
     const handleSubmit = () => {
         if (formData.name && formData.items.length > 0) {
-            // Payload for API: { name, items: [{ catalog_item_id, quantity }] }
             onConfirm({
+                id: initialData?.id, // Pass ID if editing
                 name: formData.name,
-                items: formData.items.map(i => ({ catalog_item_id: i.catalog_item_id, quantity: i.quantity }))
+                items: formData.items.map(i => ({ catalog_item_id: i.catalog_item_id, quantity: i.quantity })),
+                price: isManualPrice ? Number(formData.price) : 0 // Send 0 if calculated/automatic
             });
             onClose();
         }
@@ -83,10 +113,10 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                 <DialogHeader className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-row items-center justify-between space-y-0">
                     <div>
                         <DialogTitle className="font-heading font-bold text-lg text-slate-800 text-left">
-                            Nuevo Combo
+                            {initialData ? 'Editar Combo' : 'Nuevo Combo'}
                         </DialogTitle>
                         <DialogDescription className="text-left">
-                            Combina productos del catálogo en un paquete.
+                            {initialData ? 'Modifica los componentes o el precio del combo.' : 'Combina productos del catálogo en un paquete.'}
                         </DialogDescription>
                     </div>
                 </DialogHeader>
@@ -112,7 +142,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                                         <span className="font-medium text-slate-700 text-sm line-clamp-1">{s.name}</span>
                                     </div>
                                     <div className="flex justify-between items-end mt-auto">
-                                        <p className="text-xs font-bold text-slate-500">${s.price?.toLocaleString()}</p>
+                                        <p className="text-xs font-bold text-slate-500">${(s.price || 0).toLocaleString()}</p>
                                         <Button size="sm" variant="ghost" className="h-6 w-6 p-0 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground rounded-full">
                                             <Plus className="h-3 w-3" />
                                         </Button>
@@ -161,7 +191,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                                             </div>
                                             <div>
                                                 <p className="text-sm font-medium text-slate-800">{item.name}</p>
-                                                <p className="text-xs text-slate-500">${item.price?.toLocaleString()} c/u</p>
+                                                <p className="text-xs text-slate-500">${(item.price || 0).toLocaleString()} c/u</p>
                                             </div>
                                         </div>
                                         <button onClick={() => handleRemoveItem(item.catalog_item_id)} className="text-slate-300 hover:text-rose-500 transition-colors p-2">
@@ -173,15 +203,47 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                         </div>
 
                         {/* 3. Footer */}
-                        <div className="bg-slate-900 rounded-xl p-5 text-white shadow-lg shadow-primary/10 mt-auto">
-                            <div className="flex justify-between items-center mb-4">
-                                <div>
-                                    <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Precio Referencia (Suma)</p>
-                                    <div className="flex items-center gap-2">
+                        <div className="bg-slate-900 rounded-xl p-5 text-white shadow-lg shadow-primary/10 mt-auto space-y-4">
+
+                            {/* Price Toggle */}
+                            <div className="flex items-center justify-between border-b border-slate-700 pb-4">
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        onClick={() => {
+                                            const newVal = !isManualPrice;
+                                            setIsManualPrice(newVal);
+                                            // Reset manual price to sum if disabled? Or keep existing?
+                                            if (!newVal) setFormData(prev => ({ ...prev, price: 0 }));
+                                            else setFormData(prev => ({ ...prev, price: servicesTotal }));
+                                        }}
+                                        className={`w-10 h-6 rounded-full flex items-center p-1 cursor-pointer transition-colors ${isManualPrice ? 'bg-primary' : 'bg-slate-700'}`}
+                                    >
+                                        <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isManualPrice ? 'translate-x-4' : 'translate-x-0'}`} />
+                                    </div>
+                                    <span className="text-sm font-medium text-slate-300">Precio Promocional / Manual</span>
+                                </div>
+
+                                <div className="text-right">
+                                    <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">
+                                        {isManualPrice ? 'Precio Final (Manual)' : 'Precio Total (Automático)'}
+                                    </p>
+
+                                    {isManualPrice ? (
+                                        <div className="flex items-baseline gap-1 justify-end">
+                                            <span className="text-lg font-bold text-primary mr-1">$</span>
+                                            <input
+                                                type="number"
+                                                className="bg-transparent border-b border-white/20 text-2xl font-bold font-heading w-32 text-right focus:outline-none focus:border-primary text-white"
+                                                value={formData.price}
+                                                onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+                                                autoFocus
+                                            />
+                                        </div>
+                                    ) : (
                                         <span className="text-2xl font-bold font-heading">
                                             ${servicesTotal.toLocaleString()}
                                         </span>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -190,7 +252,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                                 disabled={!formData.name || formData.items.length === 0}
                                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
                             >
-                                <Save className="h-4 w-4 mr-2" /> Crear Combo
+                                <Save className="h-4 w-4 mr-2" /> {initialData ? 'Guardar Cambios' : 'Crear Combo'}
                             </Button>
                         </div>
                     </div>
