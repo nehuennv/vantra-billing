@@ -1,5 +1,6 @@
 // src/features/billing/pages/BillingPage.jsx
 import React from 'react';
+import { PageTransition } from "../../../components/common/PageTransition";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -16,7 +17,7 @@ export default function BillingPage() {
     const totalForecast = recurringClients.reduce((acc, curr) => acc + curr.recurringAmount, 0);
 
     return (
-        <div className="space-y-6">
+        <PageTransition className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-slate-900">Facturación Recurrente</h1>
@@ -113,6 +114,6 @@ export default function BillingPage() {
                     </table>
                 </div>
             </Card>
-        </div>
+        </PageTransition>
     );
 }

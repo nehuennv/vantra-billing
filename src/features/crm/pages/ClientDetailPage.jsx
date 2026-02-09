@@ -20,6 +20,7 @@ import { CreateServiceModal } from '../../../components/modals/CreateServiceModa
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { Repeat, Zap, FileX2, Trash, Ban, CheckCircle as CheckCircleIcon, Wifi, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield } from 'lucide-react';
+import { PageTransition } from "../../../components/common/PageTransition";
 
 const ICON_MAP = {
     'Wifi': Wifi, 'Zap': Zap, 'Globe': Globe, 'Monitor': Monitor,
@@ -463,7 +464,7 @@ export default function ClientDetailPage() {
     };
 
     if (!client) return (
-        <div className="space-y-6 pb-20 animate-in fade-in duration-300">
+        <PageTransition className="space-y-6 pb-20">
             {/* Header Skeleton */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
                 <div className="flex items-center gap-4">
@@ -492,7 +493,7 @@ export default function ClientDetailPage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </PageTransition>
     );
 
     // Derived State
@@ -501,7 +502,7 @@ export default function ClientDetailPage() {
         .reduce((sum, s) => sum + s.price, 0);
 
     return (
-        <div className="space-y-6 pb-20 animate-in fade-in duration-300">
+        <PageTransition className="space-y-6 pb-20">
 
             {/* --- HEADER --- */}
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-slate-200 pb-6">
@@ -644,10 +645,10 @@ export default function ClientDetailPage() {
             </div >
 
             {/* --- LAYOUT GRID --- */}
-            < div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start" >
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
 
                 {/* --- LEFT COLUMN: CLIENT DATA (1 Col) --- */}
-                < div className="space-y-6" >
+                <div className="space-y-6">
                     <Card className="border-slate-200 shadow-sm overflow-hidden">
                         <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4">
                             <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
@@ -723,7 +724,7 @@ export default function ClientDetailPage() {
                                 {/* Observaciones Internas (Privado) - MOVIDO A NUEVA TARJETA */}
                             </div>
                         </CardContent>
-                    </Card>
+                    </Card >
 
                     {/* Notas y Observaciones */}
                     {
@@ -757,13 +758,13 @@ export default function ClientDetailPage() {
                             </Card>
                         )
                     }
-                </div >
+                </div>
 
                 {/* --- RIGHT COLUMN: OPERATIONS (2 Cols) --- */}
-                < div className="lg:col-span-2 space-y-8" >
+                <div className="lg:col-span-2 space-y-8">
 
                     {/* SECCIÓN 1: PRESUPUESTO */}
-                    < Card className="border-slate-200 shadow-sm overflow-hidden" >
+                    <Card className="border-slate-200 shadow-sm overflow-hidden">
                         <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4 flex flex-row items-center justify-between">
                             <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
                                 <Zap className="h-4 w-4 text-primary" />
@@ -1065,6 +1066,6 @@ export default function ClientDetailPage() {
                     setServiceToEdit(null);
                 }}
             />
-        </div >
+        </PageTransition>
     );
 }

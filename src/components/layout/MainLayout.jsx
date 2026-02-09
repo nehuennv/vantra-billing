@@ -1,4 +1,4 @@
-import { useOutlet, useLocation } from "react-router-dom";
+import { useOutlet, useLocation, Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { AnimatePresence, motion } from "framer-motion";
 import { clientConfig } from "../../config/client";
@@ -42,18 +42,12 @@ export function MainLayout() {
                 </div>
 
                 {/* Internal Scroll Area */}
-                <div className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar p-4 md:p-6 lg:p-8">
                     <AnimatePresence mode="wait">
-                        <motion.div
-                            key={location.pathname}
-                            initial={{ opacity: 0, y: 10, filter: 'blur(5px)' }}
-                            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                            exit={{ opacity: 0, y: -10, filter: 'blur(5px)' }}
-                            transition={{ duration: 0.3, ease: "easeOut" }}
-                            className="w-full min-h-full space-y-8 p-4 md:p-8"
-                        >
-                            {animatedOutlet}
-                        </motion.div>
+                        {/* Wrapper div with key ensures content remounts/animates on route change while Sidebar stays put */}
+                        <div key={location.pathname} className="h-full w-full">
+                            <Outlet />
+                        </div>
                     </AnimatePresence>
                 </div>
             </main>

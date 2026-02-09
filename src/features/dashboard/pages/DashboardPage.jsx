@@ -1,4 +1,5 @@
 import React from 'react';
+import { PageTransition } from "../../../components/common/PageTransition";
 import { useDashboardMetrics } from "../../../hooks/useDashboardMetrics";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { StatsGrid } from "./components/StatsGrid";
@@ -12,7 +13,7 @@ export default function DashboardPage() {
     if (error) return <div className="p-6 text-red-500">Error de conexión.</div>;
 
     return (
-        <div className="space-y-6">
+        <PageTransition className="space-y-6">
 
             <DashboardHeader />
 
@@ -37,6 +38,6 @@ export default function DashboardPage() {
                     />
                 </div>
             </div>
-        </div>
+        </PageTransition>
     );
 }

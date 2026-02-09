@@ -1,5 +1,6 @@
 // src/features/services/pages/ServicesPage.jsx
 import React, { useState, useEffect } from 'react';
+import { PageTransition } from "../../../components/common/PageTransition";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -310,7 +311,7 @@ export default function ServicesPage() {
     }).sort((a, b) => sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <PageTransition className="space-y-6">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -396,6 +397,6 @@ export default function ServicesPage() {
                     )}
                 </div>
             )}
-        </div>
+        </PageTransition>
     );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PageTransition } from "../../../components/common/PageTransition";
 import { Link } from 'react-router-dom';
 import { DEFAULT_COLUMNS } from '../data/constants';
 import { Card, CardContent } from "../../../components/ui/Card";
@@ -227,7 +228,7 @@ export default function CRMPage() {
     );
 
     return (
-        <div className="h-[calc(100vh-8rem)] flex flex-col gap-6">
+        <PageTransition className="h-[calc(100vh-8rem)] flex flex-col gap-6">
             {/* --- FIXED HEADER SECTION --- */}
             <div className="flex-none space-y-6">
                 {/* HEADER TITLE & ACTIONS */}
@@ -476,6 +477,6 @@ export default function CRMPage() {
                 onCreate={handleAddClient}
                 onAddColumn={handleAddColumn}
             />
-        </div>
+        </PageTransition>
     );
 }

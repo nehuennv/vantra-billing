@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageTransition } from "../../../components/common/PageTransition";
 import { motion, AnimatePresence } from "framer-motion";
 import { Save, User, CreditCard, Bell, Shield, Mail, Download, Lock } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
@@ -53,7 +54,7 @@ export default function SettingsPage() {
     };
 
     return (
-        <div className="max-w-5xl mx-auto w-full p-6">
+        <PageTransition className="max-w-5xl mx-auto w-full p-6">
             <header className="mb-8">
                 <h1 className="text-3xl font-heading font-bold text-slate-900">Configuración</h1>
                 <p className="text-slate-500 mt-1">Administra tus preferencias y cuenta.</p>
@@ -299,6 +300,6 @@ export default function SettingsPage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </PageTransition>
     );
 }
