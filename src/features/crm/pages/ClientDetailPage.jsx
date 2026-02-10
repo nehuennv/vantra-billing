@@ -13,7 +13,8 @@ import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../../billing/components/InvoicePDF';
 import { InvoicePreviewModal } from '../../billing/components/InvoicePreviewModal';
 import { CreateClientModal } from '../components/CreateClientModal';
-import { toast } from 'sonner';
+
+import { useToast } from '../../../hooks/useToast';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 import { CreateServiceModal } from '../../../components/modals/CreateServiceModal';
 
@@ -29,6 +30,7 @@ const ICON_MAP = {
 };
 
 export default function ClientDetailPage() {
+    const { toast } = useToast();
     const { id } = useParams();
     const [client, setClient] = useState(null);
     const [services, setServices] = useState([]);

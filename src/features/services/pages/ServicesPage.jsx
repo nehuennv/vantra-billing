@@ -11,7 +11,7 @@ import { ConfirmDeleteModal } from "../../../components/modals/ConfirmDeleteModa
 
 // API
 import { catalogAPI, combosAPI } from "../../../services/apiClient";
-import { toast } from 'sonner';
+import { useToast } from '../../../hooks/useToast';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Skeleton } from '../../../components/ui/Skeleton';
 
@@ -75,6 +75,7 @@ import { useSearchParams } from 'react-router-dom';
 
 export default function ServicesPage() {
     // View Mode: 'catalog' | 'combos' - synced with URL
+    const { toast } = useToast();
     const [searchParams, setSearchParams] = useSearchParams();
     const viewMode = searchParams.get('view') || 'catalog';
 

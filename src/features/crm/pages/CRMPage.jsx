@@ -10,12 +10,13 @@ import { ClientKanbanBoard } from "../components/ClientKanbanBoard";
 import { clientAPI } from "../../../services/apiClient";
 import { adaptClient, adaptClientForApi } from "../../../utils/adapters";
 import { CreateClientModal } from "../components/CreateClientModal";
-import { toast } from 'sonner';
+import { useToast } from '../../../hooks/useToast';
 import { Skeleton } from "../../../components/ui/Skeleton";
 
 
 
 export default function CRMPage() {
+    const { toast } = useToast();
     const [searchParams, setSearchParams] = useSearchParams();
     const viewMode = searchParams.get('view') || 'list'; // Default to 'list' to match original state
 

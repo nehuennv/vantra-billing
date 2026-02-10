@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clientConfig } from '../../../config/client';
-import { toast } from 'sonner';
+import { useToast } from '../../../hooks/useToast';
 import { authAPI } from '../../../services/apiClient';
 import { Loader2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -18,6 +18,7 @@ const NoiseOverlay = () => (
 
 const LoginPage = () => {
     const navigate = useNavigate();
+    const { toast } = useToast();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);

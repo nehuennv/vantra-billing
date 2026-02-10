@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Save, User, CreditCard, Bell, Shield, Mail, Download, Lock } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { useSettings } from "../../../hooks/useSettings";
-import { toast } from "sonner"; // Assuming sonner is available based on App.jsx
+import { useToast } from "../../../hooks/useToast";
 
 const Tabs = [
     { id: "profile", label: "Perfil", icon: User },
@@ -18,6 +18,7 @@ const Tabs = [
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState("profile");
     const { settings, updateSection, exportData } = useSettings();
+    const { toast } = useToast();
     const [loading, setLoading] = useState(false);
 
     // Local state for forms to allow independent editing before saving
