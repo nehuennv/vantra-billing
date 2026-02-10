@@ -8,7 +8,13 @@ const request = async (endpoint, method = 'GET', body = null) => {
 
     const headers = {
         'x-api-key': API_KEY,
+        'Accept': 'application/json',
     };
+
+    const token = localStorage.getItem('token');
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
 
     if (body) {
         headers['Content-Type'] = 'application/json';
@@ -23,6 +29,14 @@ const request = async (endpoint, method = 'GET', body = null) => {
     try {
         console.log(`[API Client] Requesting: ${method} ${API_URL}${endpoint}`, config);
         const response = await fetch(`${API_URL}${endpoint}`, config);
+
+        if (response.status === 401 && !endpoint.includes('/auth/login')) {
+            console.warn("[API Client] 401 Unauthorized - Redirecting to login");
+            localStorage.removeItem('token');
+            localStorage.removeItem('vantra_user');
+            window.location.href = '/login';
+            return; // Detener ejecución
+        }
 
         if (!response.ok) {
             let errorMessage = `Error ${response.status}: ${response.statusText}`;
@@ -42,6 +56,15 @@ const request = async (endpoint, method = 'GET', body = null) => {
     } catch (error) {
         console.error(`API Request failed: ${method} ${endpoint}`, error);
         throw error;
+    }
+};
+
+export const authAPI = {
+    login: (data) => {
+        return request('/v1/auth/login', 'POST', data);
+    },
+    changePassword: (data) => {
+        return request('/v1/account/change-password', 'POST', data);
     }
 };
 
@@ -108,11 +131,20 @@ export const invoiceAPI = {
         console.log("[DEBUG] Requesting PDF:", url);
 
         try {
-            const response = await fetch(url, {
-                headers: { 'x-api-key': API_KEY }
-            });
+            const headers = { 'x-api-key': API_KEY };
+            const token = localStorage.getItem('token');
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            const response = await fetch(url, { headers });
 
             console.log("[DEBUG] PDF Response Status:", response.status);
+
+            if (response.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('vantra_user');
+                window.location.href = '/login';
+                return;
+            }
 
             if (!response.ok) {
                 const text = await response.text();

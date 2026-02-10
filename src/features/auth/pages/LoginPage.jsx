@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clientConfig } from '../../../config/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowRight } from 'lucide-react';
+import { authAPI } from '../../../services/apiClient';
+import { Loader2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 
 // --- 1. COMPONENTE DE RUIDO (Noise Texture) ---
 // Clave para la estética Arc: quita la sensación de "sitio web plano"
@@ -24,20 +25,52 @@ const LoginPage = () => {
     // Color principal (Fallback a negro si no existe)
     const primaryColor = clientConfig.colors?.primary || '#18181b';
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
+
+        if (!username || !password) {
+            toast.error('Información incompleta', {
+                description: 'Por favor, completa todos los campos.',
+                icon: <AlertCircle className="h-5 w-5 text-red-500" />,
+            });
+            return;
+        }
+
         setIsLoading(true);
-        // Simulación de carga
-        setTimeout(() => {
-            if (username && password) {
-                sessionStorage.setItem('isAuthenticated', 'true');
-                toast.success(`Bienvenido a ${clientConfig.name}`);
+
+        try {
+            const response = await authAPI.login({ email: username, password });
+
+            if (response && response.token) {
+                localStorage.setItem('token', response.token);
+                localStorage.setItem('vantra_user', JSON.stringify(response.user));
+
+                toast.success('Sesión iniciada', {
+                    description: `Bienvenido de nuevo a ${clientConfig.name}`,
+                    icon: <CheckCircle2 className="h-5 w-5 text-emerald-500" />,
+                });
                 navigate('/');
             } else {
-                toast.error('Credenciales incorrectas');
+                throw new Error("Respuesta inválida del servidor");
             }
+        } catch (error) {
+            console.error("Login Error:", error);
+
+            // Mensaje genérico para seguridad y UX
+            let description = 'Usuario o contraseña incorrectos.';
+
+            // Solo diferenciamos si es un error de red claro
+            if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('Network'))) {
+                description = 'Error de conexión con el servidor.';
+            }
+
+            toast.error('Error de acceso', {
+                description: description,
+                icon: <AlertCircle className="h-5 w-5 text-red-500" />,
+            });
+        } finally {
             setIsLoading(false);
-        }, 1200);
+        }
     };
 
     return (
@@ -156,12 +189,7 @@ const LoginPage = () => {
                         </button>
                     </form>
 
-                    {/* Footer Sutil */}
-                    <div className="mt-8 pt-6 border-t border-zinc-200/50 w-full text-center">
-                        <p className="text-xs text-zinc-400 font-medium hover:text-zinc-600 cursor-pointer transition-colors">
-                            ¿Olvidaste tu contraseña?
-                        </p>
-                    </div>
+
                 </div>
             </div>
 

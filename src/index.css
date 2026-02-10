@@ -36,29 +36,6 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
-
-  @keyframes accordion-down {
-    from {
-      height: 0
-    }
-
-    to {
-      height: var(--radix-accordion-content-height)
-    }
-  }
-
-  @keyframes accordion-up {
-    from {
-      height: var(--radix-accordion-content-height)
-    }
-
-    to {
-      height: 0
-    }
-  }
 }
 
 @utility container {
@@ -74,10 +51,6 @@
   }
 }
 
-/*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to sure everything still looks the same.
-*/
 @layer base {
 
   *,
@@ -101,7 +74,6 @@
     --popover-foreground: 222.2 84% 4.9%;
 
     --primary: 243.4 75.4% 58.6%;
-    /* Indigo-600 */
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
@@ -164,4 +136,133 @@
     font-family: 'Plus Jakarta Sans', sans-serif;
     font-feature-settings: "cv11", "ss01";
   }
+}
+
+/* =========================================
+   VANTRA PREMIUM TOAST STYLING (NUCLEAR)
+   ========================================= */
+
+/* 1. KEYFRAMES */
+@keyframes vantra-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes vantra-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    height: var(--height);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+    height: 0;
+  }
+}
+
+/* 2. BASE TOAST STYLING */
+.vantra-toast {
+  /* Layout & Box Model */
+  width: auto !important;
+  min-width: 380px !important;
+  padding: 20px !important;
+  gap: 16px !important;
+  border-radius: 24px !important;
+
+  /* Appearance (Dark Glassmorphism) */
+  background-color: #18181b !important;
+  /* Zinc-950/Black */
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    0 20px 60px -15px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.1) !important;
+
+  /* Typography */
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  color: white !important;
+
+  /* Interaction & Transition */
+  cursor: default !important;
+  transform-origin: top center !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+
+  /* Ensure stacking context */
+  position: relative !important;
+  z-index: 9999 !important;
+}
+
+/* 3. ANIMATION TRIGGERS (Sonner Data Attributes) */
+.vantra-toast[data-state="open"] {
+  animation: vantra-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+.vantra-toast[data-state="closed"] {
+  animation: vantra-exit 0.3s ease-in forwards !important;
+}
+
+/* 4. HOVER EFFECT */
+.vantra-toast:hover {
+  transform: scale(1.02) translateY(2px) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 25px 70px -12px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* 5. CONTENT STYLING */
+.vantra-toast-title {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.015em !important;
+  color: white !important;
+  margin-bottom: 2px !important;
+}
+
+.vantra-toast-description {
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  color: #a1a1aa !important;
+  /* Zinc-400 */
+  line-height: 1.5 !important;
+}
+
+/* 6. ICONS */
+.vantra-toast svg {
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.1)) !important;
+}
+
+/* 7. ACTIONS */
+.vantra-toast-action {
+  background: white !important;
+  color: black !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  border-radius: 12px !important;
+  padding: 8px 16px !important;
+  transition: opacity 0.2s !important;
+}
+
+.vantra-toast-action:hover {
+  opacity: 0.9 !important;
+}
+
+.vantra-toast-cancel {
+  background: transparent !important;
+  color: #71717a !important;
+  /* Zinc-500 */
+  font-weight: 500 !important;
+  font-size: 12px !important;
+  transition: color 0.2s !important;
+}
+
+.vantra-toast-cancel:hover {
+  color: #d4d4d8 !important;
+  /* Zinc-300 */
 }
