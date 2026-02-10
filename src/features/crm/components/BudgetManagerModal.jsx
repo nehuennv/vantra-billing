@@ -63,7 +63,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                 newBudgetItems.push({
                     type: 'combo',
                     id: group.id, // This is the origin_combo_id (UUID or whatever ID used)
-                    name: 'Pack de Servicios', // Placeholder, will update with package match if possible
+                    name: 'Plan de Servicios', // Placeholder, will update with package match if possible
                     price: total,
                     items: group.items
                 });
@@ -304,7 +304,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                         <button
                             onClick={() => handleRemoveItem(index)}
                             className="text-slate-400 hover:text-rose-600 p-1 rounded-md hover:bg-rose-50 transition-colors"
-                            title="Eliminar Pack Completo"
+                            title="Eliminar Plan Completo"
                         >
                             <Trash2 className="h-4 w-4" />
                         </button>
@@ -363,7 +363,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                                     onClick={() => setActiveTab('packages')}
                                     className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'packages' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
-                                    <Package className="h-3 w-3" /> Combos
+                                    <Package className="h-3 w-3" /> Planes
                                 </button>
                             </div>
                         </div>
@@ -372,7 +372,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder={activeTab === 'services' ? "Buscar producto..." : "Buscar combo..."}
+                                placeholder={activeTab === 'services' ? "Buscar producto..." : "Buscar plan..."}
                                 className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -450,7 +450,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center p-8 border-2 border-dashed border-slate-100 rounded-xl">
                                     <p className="text-sm">No hay servicios en el presupuesto.</p>
-                                    <p className="text-xs mt-1">Agrega servicios o paquetes desde el panel izquierdo.</p>
+                                    <p className="text-xs mt-1">Agrega servicios o planes desde el panel izquierdo.</p>
                                 </div>
                             )}
                         </div>

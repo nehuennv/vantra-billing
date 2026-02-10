@@ -740,10 +740,10 @@ export default function ClientDetailPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
 
                 {/* --- LEFT COLUMN: CLIENT DATA (1 Col) --- */}
-                <div className="space-y-6">
-                    <Card className="border-slate-200 shadow-sm overflow-hidden">
+                <div className="space-y-6 sticky top-8">
+                    <Card className="shadow-none border border-slate-200/60 bg-white/50 overflow-hidden">
                         <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4">
-                            <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                            <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                                 <User className="h-4 w-4 text-primary" />
                                 Datos Generales
                             </CardTitle>
@@ -821,9 +821,9 @@ export default function ClientDetailPage() {
                     {/* Notas y Observaciones */}
                     {
                         (client.internalObs || client.obs) && (
-                            <Card className="border-slate-200 shadow-sm overflow-hidden">
+                            <Card className="shadow-none border border-slate-200/60 bg-white/50 overflow-hidden">
                                 <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4">
-                                    <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                    <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                                         <FileText className="h-4 w-4 text-primary" />
                                         Notas y Observaciones
                                     </CardTitle>
@@ -856,9 +856,9 @@ export default function ClientDetailPage() {
                 <div className="lg:col-span-2 space-y-8">
 
                     {/* SECCIÓN 1: PRESUPUESTO */}
-                    <Card className="border-slate-200 shadow-sm overflow-hidden">
+                    <Card className="shadow-none border border-slate-200/60 bg-white/50 overflow-hidden">
                         <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4 flex flex-row items-center justify-between">
-                            <CardTitle className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                            <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                                 <Zap className="h-4 w-4 text-primary" />
                                 Presupuesto / Servicios Activos
                             </CardTitle>
@@ -1034,13 +1034,13 @@ export default function ClientDetailPage() {
                     </Card >
 
                     {/* SECCIÓN 2: HISTORIAL DE FACTURAS */}
-                    < div className="space-y-4" >
-                        <div className="flex items-center gap-2 px-1">
-                            <FileText className="h-5 w-5 text-slate-400" />
-                            <h2 className="text-lg font-bold text-slate-900">Historial de Facturación</h2>
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 px-1 mb-2">
+                            <FileText className="h-4 w-4 text-slate-400" />
+                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Historial de Facturación</h2>
                         </div>
 
-                        <Card className="border-slate-200 shadow-sm overflow-hidden bg-white">
+                        <Card className="shadow-none border border-slate-200/60 bg-white/50 overflow-hidden">
                             {invoices.length > 0 ? (
                                 <div className="overflow-x-auto w-full">
                                     <table className="w-full text-sm text-left whitespace-nowrap">

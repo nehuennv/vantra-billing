@@ -1,5 +1,6 @@
 // src/features/services/pages/ServicesPage.jsx
 import React, { useState, useEffect } from 'react';
+import { motion } from "framer-motion";
 import { PageTransition } from "../../../components/common/PageTransition";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -192,9 +193,9 @@ export default function ServicesPage() {
         };
 
         toast.promise(promise(), {
-            loading: formData.id ? 'Actualizando combo...' : 'Creando combo...',
-            success: formData.id ? 'Combo actualizado' : 'Combo creado',
-            error: 'Error al guardar combo'
+            loading: formData.id ? 'Actualizando plan...' : 'Creando plan...',
+            success: formData.id ? 'Plan actualizado' : 'Plan creado',
+            error: 'Error al guardar plan'
         });
         setIsComboModalOpen(false);
         setItemToEdit(null);
@@ -269,7 +270,7 @@ export default function ServicesPage() {
 
                     <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
                         <div>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Precio Paquete</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Precio Plan</p>
                             <div className="flex items-baseline gap-1">
                                 <p className="text-xl font-bold text-slate-900 font-heading">${effectivePrice.toLocaleString()}</p>
                             </div>
@@ -349,23 +350,36 @@ export default function ServicesPage() {
                         Administrador de Catálogo
                     </h1>
                     <p className="text-slate-500 mt-1">
-                        {viewMode === 'catalog' ? 'Define tus productos y precios base.' : 'Crea paquetes de productos.'}
+                        {viewMode === 'catalog' ? 'Define tus productos y precios base.' : 'Crea planes de productos.'}
                     </p>
                 </div>
                 <div className="flex gap-3">
                     <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
-                        <button onClick={() => setViewMode('catalog')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'catalog' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                            <LayoutGrid className="h-4 w-4" /> Productos
-                        </button>
-                        <button onClick={() => setViewMode('combos')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'combos' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                            <Package className="h-4 w-4" /> Combos
-                        </button>
+                        {['catalog', 'combos'].map((mode) => (
+                            <button
+                                key={mode}
+                                onClick={() => setViewMode(mode)}
+                                className={`relative px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-2 rounded-md ${viewMode === mode ? 'text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                {viewMode === mode && (
+                                    <motion.div
+                                        layoutId="services-view-switch"
+                                        className="absolute inset-0 bg-white rounded-md shadow-sm border border-slate-200/50"
+                                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                    />
+                                )}
+                                <span className="relative z-10 flex items-center gap-2">
+                                    {mode === 'catalog' ? <LayoutGrid className="h-4 w-4" /> : <Package className="h-4 w-4" />}
+                                    {mode === 'catalog' ? 'Productos' : 'Planes'}
+                                </span>
+                            </button>
+                        ))}
                     </div>
                     <Button
                         onClick={() => viewMode === 'catalog' ? setIsServiceModalOpen(true) : setIsComboModalOpen(true)}
                         className={`gap-2 text-white shadow-lg active:scale-95 transition-all w-[200px] justify-center bg-primary hover:bg-primary/90 shadow-primary/20`}
                     >
-                        <Plus className="h-4 w-4" /> {viewMode === 'catalog' ? 'Nuevo Ítem' : 'Nuevo Combo'}
+                        <Plus className="h-4 w-4" /> {viewMode === 'catalog' ? 'Nuevo Ítem' : 'Nuevo Plan'}
                     </Button>
                 </div>
             </div>
@@ -392,7 +406,7 @@ export default function ServicesPage() {
                 onClose={() => setIsDeleteModalOpen(false)}
                 onConfirm={handleConfirmDelete}
                 entityName={itemToDelete?.name}
-                entityType={itemToDelete?.type === 'catalog' ? 'Ítem' : 'Combo'}
+                entityType={itemToDelete?.type === 'catalog' ? 'Ítem' : 'Plan'}
             />
 
             {/* Filters */}
@@ -400,7 +414,7 @@ export default function ServicesPage() {
                 <CardContent className="p-4 flex flex-col lg:flex-row gap-4 justify-between items-center">
                     <div className="relative w-full lg:w-1/3">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                        <input type="text" placeholder={viewMode === 'catalog' ? "Buscar productos..." : "Buscar combos..."} className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                        <input type="text" placeholder={viewMode === 'catalog' ? "Buscar productos..." : "Buscar planes..."} className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
                     <div className="flex gap-3 items-center">
                         <Button variant="ghost" size="sm" onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="h-9 px-3 text-slate-500 hover:text-slate-800 bg-slate-50 border border-slate-200">
@@ -423,7 +437,7 @@ export default function ServicesPage() {
                         )
                     ) : (
                         filteredCombos.length > 0 ? filteredCombos.map(combo => renderComboCard(combo)) : (
-                            <div className="col-span-full"><EmptyState icon={Package} title="Sin Combos" description="Agrupa productos en paquetes atractivos." actionLabel="Crear Combo" onAction={() => setIsComboModalOpen(true)} /></div>
+                            <div className="col-span-full"><EmptyState icon={Package} title="Sin Planes" description="Agrupa productos en paquetes atractivos." actionLabel="Crear Plan" onAction={() => setIsComboModalOpen(true)} /></div>
                         )
                     )}
                 </div>

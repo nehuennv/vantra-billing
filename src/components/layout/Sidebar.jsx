@@ -28,9 +28,13 @@ export function Sidebar() {
                             <img src={clientConfig.logo} alt={clientConfig.name} className="h-9 w-auto object-contain brightness-0 invert ease-out transition-transform duration-300 group-hover:scale-105" />
                         ) : (
                             <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white shadow-sm transition-transform duration-300 group-hover:scale-110 group-active:scale-95">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                                    <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
-                                </svg>
+                                {clientConfig.icon ? (
+                                    <clientConfig.icon className="w-5 h-5 text-white" strokeWidth={2.5} />
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                        <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
+                                    </svg>
+                                )}
                             </div>
                         )}
                     </div>
@@ -40,7 +44,7 @@ export function Sidebar() {
                             {clientConfig.name || "Vantra"}
                         </span>
                         <span className="text-[10px] font-medium text-white/50 tracking-[0.2em] uppercase mt-1">
-                            Billing OS
+                            by Vantra
                         </span>
                     </div>
                 </div>

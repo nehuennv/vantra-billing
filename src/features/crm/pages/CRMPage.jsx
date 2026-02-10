@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageTransition } from "../../../components/common/PageTransition";
+import { motion } from "framer-motion";
 import { Link, useSearchParams } from 'react-router-dom';
 import { DEFAULT_COLUMNS } from '../data/constants';
 import { Card, CardContent } from "../../../components/ui/Card";
@@ -204,8 +205,8 @@ export default function CRMPage() {
 
     // SKELETONS
     const renderListSkeleton = () => (
-        <Card className="overflow-hidden border-slate-200 shadow-sm bg-white">
-            <div className="overflow-x-auto">
+        <Card className="flex-1 overflow-hidden shadow-none border border-slate-200/60 bg-white/50 flex flex-col">
+            <div className="flex-1 overflow-auto">
                 <table className="w-full text-sm text-left">
                     <thead className="text-xs text-slate-500 uppercase bg-slate-50/80 border-b border-slate-100">
                         <tr>
@@ -217,16 +218,19 @@ export default function CRMPage() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {[1, 2, 3, 4, 5].map((i) => (
+                        {[1, 2, 3, 4, 5, 6, 7].map((i) => (
                             <tr key={i}>
                                 <td className="px-6 py-4">
-                                    <div className="space-y-2">
-                                        <Skeleton className="h-5 w-32" />
-                                        <Skeleton className="h-3 w-20" />
+                                    <div className="flex items-center gap-3">
+                                        <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+                                        <div className="space-y-1.5 flex-1">
+                                            <Skeleton className="h-4 w-32" />
+                                            <Skeleton className="h-3 w-20" />
+                                        </div>
                                     </div>
                                 </td>
                                 <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
-                                <td className="px-6 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
+                                <td className="px-6 py-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
                                 <td className="px-6 py-4 text-right"><Skeleton className="h-5 w-16 ml-auto" /></td>
                                 <td className="px-6 py-4 flex justify-center"><Skeleton className="h-9 w-9 rounded-full" /></td>
                             </tr>
@@ -235,6 +239,49 @@ export default function CRMPage() {
                 </table>
             </div>
         </Card>
+    );
+
+    const renderBoardSkeleton = () => (
+        <div className="h-full flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
+            {[1, 2, 3, 4].map((colIndex) => (
+                <div key={colIndex} className="flex-shrink-0 w-80 flex flex-col bg-slate-100/50 rounded-xl border border-slate-200/60 snap-start">
+                    {/* Header Skeleton */}
+                    <div className="p-3 flex items-center justify-between border-b border-slate-200/50 bg-slate-50/50 rounded-t-xl">
+                        <div className="flex items-center gap-2">
+                            <Skeleton className="h-3 w-3 rounded-full" />
+                            <Skeleton className="h-5 w-24" />
+                        </div>
+                        <Skeleton className="h-5 w-8 rounded-md" />
+                    </div>
+                    {/* Cards Skeleton */}
+                    <div className="p-2 space-y-3 flex-1 overflow-hidden">
+                        {[1, 2, 3].map((cardIndex) => (
+                            <div key={cardIndex} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200/50 space-y-3">
+                                <div className="flex justify-between items-start">
+                                    <Skeleton className="h-4 w-20 rounded-md" />
+                                    <Skeleton className="h-6 w-6 rounded-full" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Skeleton className="h-5 w-full" />
+                                    <Skeleton className="h-4 w-2/3" />
+                                </div>
+                                <div className="flex items-center gap-2 pt-2">
+                                    <Skeleton className="h-6 w-16 rounded-full" />
+                                    <Skeleton className="h-6 w-16 rounded-full" />
+                                </div>
+                                <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
+                                    <div className="flex -space-x-2">
+                                        <Skeleton className="h-6 w-6 rounded-full border-2 border-white" />
+                                        <Skeleton className="h-6 w-6 rounded-full border-2 border-white" />
+                                    </div>
+                                    <Skeleton className="h-4 w-12" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
     );
 
     return (
@@ -251,18 +298,25 @@ export default function CRMPage() {
                     <div className="flex items-center gap-3">
                         {/* View Switcher */}
                         <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
-                            <button
-                                onClick={() => setViewMode('list')}
-                                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'list' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                <List className="h-4 w-4" /> Lista
-                            </button>
-                            <button
-                                onClick={() => setViewMode('board')}
-                                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${viewMode === 'board' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                <LayoutGrid className="h-4 w-4" /> Tablero
-                            </button>
+                            {['list', 'board'].map((mode) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => setViewMode(mode)}
+                                    className={`relative px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-2 rounded-md ${viewMode === mode ? 'text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    {viewMode === mode && (
+                                        <motion.div
+                                            layoutId="crm-view-switch"
+                                            className="absolute inset-0 bg-white rounded-md shadow-sm border border-slate-200/50"
+                                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                        />
+                                    )}
+                                    <span className="relative z-10 flex items-center gap-2">
+                                        {mode === 'list' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+                                        {mode === 'list' ? 'Lista' : 'Tablero'}
+                                    </span>
+                                </button>
+                            ))}
                         </div>
 
                         <Button
@@ -275,7 +329,7 @@ export default function CRMPage() {
                 </div>
 
                 {/* BARRA DE BÚSQUEDA Y FILTROS */}
-                <Card className="border-none shadow-sm bg-white/80 backdrop-blur border border-slate-200/50">
+                <Card className="shadow-none border border-slate-200/60 bg-white/50 backdrop-blur-none">
                     <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center">
                         <div className="relative flex-1 w-full">
                             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
@@ -319,16 +373,16 @@ export default function CRMPage() {
             {/* --- SCROLLABLE CONTENT SECTION --- */}
             <div className="flex-1 min-h-0 relative">
                 {isLoading ? (
-                    renderListSkeleton()
+                    viewMode === 'list' ? renderListSkeleton() : renderBoardSkeleton()
                 ) : (
                     <>
                         {/* VISTA: LISTA */}
                         {viewMode === 'list' && (
                             <div className="h-full flex flex-col">
-                                <Card className="flex-1 overflow-hidden border-slate-200 shadow-sm bg-white animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col">
+                                <Card className="flex-1 overflow-hidden shadow-none border border-slate-200/60 bg-white/50 animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col">
                                     <div className="flex-1 overflow-auto">
                                         <table className="w-full text-sm text-left relative">
-                                            <thead className="text-xs text-slate-500 uppercase bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10 backdrop-blur-sm">
+                                            <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 border-b border-slate-200 sticky top-0 z-10 backdrop-blur-sm">
                                                 <tr>
                                                     <th className="px-6 py-4 font-semibold tracking-wide">Cliente / Empresa</th>
                                                     <th className="px-6 py-4 font-semibold tracking-wide">Servicio (Matriz)</th>
@@ -345,7 +399,7 @@ export default function CRMPage() {
                                                         const statusLabel = statusCol ? statusCol.title : client.status;
 
                                                         return (
-                                                            <tr key={client.id} className="group hover:bg-slate-50/80 transition-colors duration-200">
+                                                            <tr key={client.id} className="group hover:bg-slate-50 transition-all duration-200 hover:shadow-sm">
                                                                 {/* COLUMNA NOMBRE (CLICKABLE) */}
                                                                 <td className="px-6 py-4">
                                                                     <Link to={`/crm/clients/${client.id}`} className="block group-hover:translate-x-1 transition-transform duration-200">

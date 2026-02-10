@@ -317,7 +317,7 @@ export const InvoicePDF = ({ client, items, invoiceNumber, issueDate, dueDate })
                 {/* 5. LEGAL / FINAL */}
                 <Text style={styles.legalText}>
                     Documento no válido como factura fiscal (MVP Demo). Original electrónico generado vía Web Service AFIP.
-                    Vantra Billing Software v1.0
+                    {clientConfig.name} v1.0
                 </Text>
 
             </Page>

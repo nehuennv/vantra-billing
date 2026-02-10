@@ -55,15 +55,15 @@ export default function SettingsPage() {
     };
 
     return (
-        <PageTransition className="max-w-5xl mx-auto w-full p-6">
-            <header className="mb-8">
+        <PageTransition className="h-[calc(100vh-8rem)] flex flex-col gap-6">
+            <header className="flex-none">
                 <h1 className="text-3xl font-heading font-bold text-slate-900">Configuración</h1>
                 <p className="text-slate-500 mt-1">Administra tus preferencias y cuenta.</p>
             </header>
 
-            <div className="flex flex-col md:flex-row gap-8">
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6">
                 {/* Sidebar Navigation */}
-                <aside className="w-full md:w-64 flex-shrink-0">
+                <aside className="w-full md:w-64 flex-shrink-0 overflow-y-auto p-1">
                     <nav className="space-y-1">
                         {Tabs.map((tab) => {
                             const Icon = tab.icon;
@@ -87,8 +87,8 @@ export default function SettingsPage() {
                 </aside>
 
                 {/* Main Content Area */}
-                <div className="flex-1">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 md:p-8 min-h-[500px]">
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 md:p-8 min-h-full">
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={activeTab}
@@ -96,6 +96,7 @@ export default function SettingsPage() {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
                                 transition={{ duration: 0.2 }}
+                                className="max-w-4xl" // Constrain content width for readability
                             >
                                 {activeTab === "profile" && (
                                     <div className="space-y-6">

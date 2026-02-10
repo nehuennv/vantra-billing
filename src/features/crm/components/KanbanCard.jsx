@@ -34,8 +34,8 @@ export function KanbanCard({ client, isOverlay }) {
             <Card
                 onClick={handleClick}
                 className={`
-                    group relative transition-all duration-200 border-none shadow-sm ring-1 ring-slate-200 bg-white
-                    ${isOverlay ? 'shadow-2xl ring-2 ring-primary/20 cursor-grabbing' : 'hover:shadow-md hover:-translate-y-0.5 cursor-pointer'}
+                    group relative transition-all duration-200 border-none shadow-none ring-1 ring-slate-200 bg-white
+                    ${isOverlay ? 'shadow-2xl ring-2 ring-primary/20 cursor-grabbing' : 'hover:bg-slate-50/80 hover:ring-slate-300 transition-all duration-200 cursor-pointer'}
                 `}
             >
                 <CardContent className="p-3.5">

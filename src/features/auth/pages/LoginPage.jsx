@@ -82,15 +82,14 @@ const LoginPage = () => {
             {/* TEXTURA GLOBAL */}
             <NoiseOverlay />
 
-            {/* --- 3. BACKGROUND MESH (Sutil) --- */}
-            {/* Gradientes desenfocados que se mueven muy lento detrás */}
+            {/* --- 3. BACKGROUND MESH (Sutil & Fixed) --- */}
             <div className="absolute inset-0 w-full h-full overflow-hidden">
                 <div
-                    className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] rounded-full mix-blend-multiply filter blur-[100px] opacity-[0.08] animate-pulse"
+                    className="absolute top-[-250px] left-[-250px] w-[1200px] h-[1200px] rounded-full mix-blend-multiply filter blur-[100px] animate-blob"
                     style={{ backgroundColor: primaryColor }}
                 />
                 <div
-                    className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full mix-blend-multiply filter blur-[100px] opacity-[0.06]"
+                    className="absolute bottom-[-100px] right-[-100px] w-[300px] h-[300px] rounded-full mix-blend-multiply filter blur-[50px] animate-blob animation-delay-4000"
                     style={{ backgroundColor: primaryColor }}
                 />
             </div>
@@ -117,11 +116,15 @@ const LoginPage = () => {
                                 boxShadow: `0 10px 25px -5px ${primaryColor}60`
                             }}
                         >
-                            {/* Inicial del Cliente */}
-                            {clientConfig.name.charAt(0).toUpperCase()}
+                            {/* Icono del Cliente o Inicial */}
+                            {clientConfig.icon ? (
+                                <clientConfig.icon className="w-8 h-8 text-white relative z-10" strokeWidth={3} />
+                            ) : (
+                                <span className="relative z-10">{clientConfig.name.charAt(0).toUpperCase()}</span>
+                            )}
 
                             {/* Brillo interno del logo */}
-                            <div className="absolute inset-0 rounded-[20px] bg-gradient-to-tr from-black/10 to-white/20 pointer-events-none" />
+                            <div className="absolute inset-0 rounded-[20px] bg-gradient-to-tr from-black/20 to-white/30 pointer-events-none" />
                         </div>
                     </div>
 
@@ -195,7 +198,7 @@ const LoginPage = () => {
             </div>
 
             {/* Copyright Flotante */}
-            <div className="absolute bottom-6 text-[10px] text-zinc-400 font-bold tracking-widest opacity-60">
+            <div className="absolute bottom-6 text-[10px] text-zinc-500/80 font-bold tracking-widest opacity-100 hover:opacity-100 transition-opacity">
                 POWERED BY VANTRA
             </div>
         </div>
