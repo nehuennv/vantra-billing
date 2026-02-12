@@ -30,7 +30,7 @@ const request = async (endpoint, method = 'GET', body = null) => {
         console.log(`[API Client] Requesting: ${method} ${API_URL}${endpoint}`, config);
         const response = await fetch(`${API_URL}${endpoint}`, config);
 
-        if (response.status === 401 && !endpoint.includes('/auth/login')) {
+        if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/account/change-password')) {
             console.warn("[API Client] 401 Unauthorized - Redirecting to login");
             localStorage.removeItem('token');
             localStorage.removeItem('vantra_user');
@@ -46,7 +46,9 @@ const request = async (endpoint, method = 'GET', body = null) => {
             } catch (e) {
                 // Si el body no es JSON, mantenemos el mensaje por defecto
             }
-            throw new Error(errorMessage);
+            const error = new Error(errorMessage);
+            error.status = response.status;
+            throw error;
         }
 
         // Si es 204 No Content
@@ -65,6 +67,14 @@ export const authAPI = {
     },
     changePassword: (data) => {
         return request('/v1/account/change-password', 'POST', data);
+    },
+    updateProfile: (data) => {
+        // CRITICAL: Backend does not support 'name' column yet.
+        // We filter the payload to ONLY send 'email' to avoid 400/500 errors.
+        const payload = {
+            email: data.email
+        };
+        return request('/v1/account/profile', 'PATCH', payload);
     }
 };
 

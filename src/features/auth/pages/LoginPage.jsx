@@ -4,6 +4,7 @@ import { clientConfig } from '../../../config/client';
 import { useToast } from '../../../hooks/useToast';
 import { authAPI } from '../../../services/apiClient';
 import { Loader2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { SplashScreen } from '../../../components/common/SplashScreen';
 
 // --- 1. COMPONENTE DE RUIDO (Noise Texture) ---
 // Clave para la estética Arc: quita la sensación de "sitio web plano"
@@ -22,6 +23,7 @@ const LoginPage = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showSplash, setShowSplash] = useState(false);
 
     // Color principal (Fallback a negro si no existe)
     const primaryColor = clientConfig.colors?.primary || '#18181b';
@@ -45,6 +47,12 @@ const LoginPage = () => {
             if (response && response.token) {
                 localStorage.setItem('token', response.token);
                 localStorage.setItem('vantra_user', JSON.stringify(response.user));
+
+                // Show Splash Screen
+                setShowSplash(true);
+
+                // Simulate loading time for UX
+                await new Promise(resolve => setTimeout(resolve, 2500));
 
                 toast.success('Sesión iniciada', {
                     description: `Bienvenido de nuevo a ${clientConfig.name}`,
@@ -82,14 +90,17 @@ const LoginPage = () => {
             {/* TEXTURA GLOBAL */}
             <NoiseOverlay />
 
+            {/* SPASH SCREEN */}
+            {showSplash && <SplashScreen isVisible={showSplash} message="Iniciando sesión..." />}
+
             {/* --- 3. BACKGROUND MESH (Sutil & Fixed) --- */}
             <div className="absolute inset-0 w-full h-full overflow-hidden">
                 <div
-                    className="absolute top-[-250px] left-[-250px] w-[1200px] h-[1200px] rounded-full mix-blend-multiply filter blur-[100px] animate-blob"
+                    className="absolute top-[-250px] left-[-250px] w-[1200px] h-[1200px] rounded-full mix-blend-multiply filter blur-[100px] animate-blob opacity-0"
                     style={{ backgroundColor: primaryColor }}
                 />
                 <div
-                    className="absolute bottom-[-100px] right-[-100px] w-[300px] h-[300px] rounded-full mix-blend-multiply filter blur-[50px] animate-blob animation-delay-4000"
+                    className="absolute bottom-[-100px] right-[-100px] w-[300px] h-[300px] rounded-full mix-blend-multiply filter blur-[50px] animate-blob animation-delay-4000 opacity-0"
                     style={{ backgroundColor: primaryColor }}
                 />
             </div>

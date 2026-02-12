@@ -4,9 +4,13 @@ import { cn } from "../ui/Button";
 import { clientConfig } from "../../config/client";
 import { motion } from "framer-motion";
 import { useSettings } from "../../hooks/useSettings";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/Dialog";
+import { Button } from "../ui/Button";
+import { SplashScreen } from "../common/SplashScreen";
 
 const navigation = [
-    { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    // { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Clientes", href: "/crm", icon: Users },
     { name: "Servicios", href: "/services", icon: Briefcase },
     { name: "Configuración", href: "/settings", icon: Settings },
@@ -15,6 +19,19 @@ const navigation = [
 export function Sidebar() {
     const location = useLocation();
     const { settings } = useSettings();
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [showLogoutSplash, setShowLogoutSplash] = useState(false);
+
+    const handleLogout = async () => {
+        setShowLogoutConfirm(false);
+        setShowLogoutSplash(true);
+
+        await new Promise(resolve => setTimeout(resolve, 2500));
+
+        localStorage.removeItem("token");
+        localStorage.removeItem("vantra_user");
+        window.location.href = "/login";
+    };
 
     return (
         <aside className="w-72 hidden md:flex flex-col h-full bg-transparent z-10 shrink-0 py-6 px-3">
@@ -111,25 +128,56 @@ export function Sidebar() {
 
             {/* --- USER FOOTER --- */}
             <div className="pt-4 px-2 pb-2">
-                <div className="group flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all duration-300 cursor-pointer backdrop-blur-sm shadow-sm hover:shadow-md">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-indigo-100 to-white flex items-center justify-center shrink-0 shadow-inner">
+                <div className="flex items-center justify-between p-3 rounded-xl transition-all duration-300">
+                    <div className="flex items-center gap-3 min-w-0 select-none">
+                        <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-indigo-100 to-white flex items-center justify-center shrink-0 shadow-inner cursor-default">
                             <span className="font-heading font-bold text-xs text-primary">
                                 {settings.profile.name.charAt(0).toUpperCase()}
                             </span>
                         </div>
                         <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-bold text-white truncate leading-tight group-hover:text-white transition-colors">
+                            <span className="text-sm font-bold text-white truncate leading-tight transition-colors cursor-default">
                                 {settings.profile.name}
                             </span>
-                            <span className="text-[11px] text-white/50 truncate group-hover:text-white/70 transition-colors">
+                            <span className="text-[11px] text-white/50 truncate transition-colors cursor-default">
                                 {settings.profile.email}
                             </span>
                         </div>
                     </div>
-                    <MoreVertical className="h-4 w-4 text-white/40 group-hover:text-white transition-colors" />
+                    <button
+                        onClick={() => setShowLogoutConfirm(true)}
+                        className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-all duration-300 cursor-pointer"
+                        title="Cerrar Sesión"
+                    >
+                        <LogOut className="h-4 w-4" />
+                    </button>
                 </div>
             </div>
-        </aside>
+
+            {/* Logout Confirmation Modal */}
+            <Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+                {showLogoutConfirm && (
+                    <DialogContent className="sm:max-w-[400px]">
+                        <DialogHeader>
+                            <DialogTitle>¿Cerrar sesión?</DialogTitle>
+                            <DialogDescription>
+                                ¿Estás seguro de que deseas salir de tu cuenta?
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="gap-2 sm:gap-0 mt-4">
+                            <Button variant="ghost" onClick={() => setShowLogoutConfirm(false)}>
+                                Cancelar
+                            </Button>
+                            <Button variant="destructive" onClick={handleLogout}>
+                                Cerrar Sesión
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                )}
+            </Dialog>
+
+            {/* Logout Splash Screen */}
+            <SplashScreen isVisible={showLogoutSplash} message="Cerrando sesión..." />
+        </aside >
     );
 }

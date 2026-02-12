@@ -5,6 +5,7 @@ import { Save, User, CreditCard, Bell, Shield, Mail, Download, Lock } from "luci
 import { Button } from "../../../components/ui/Button";
 import { useSettings } from "../../../hooks/useSettings";
 import { useToast } from "../../../hooks/useToast";
+import { authAPI } from "../../../services/apiClient";
 
 const Tabs = [
     { id: "profile", label: "Perfil", icon: User },
@@ -29,41 +30,97 @@ export default function SettingsPage() {
 
     const handleSave = async (section) => {
         setLoading(true);
-        // Simulate API delay
-        await new Promise(r => setTimeout(r, 800));
 
-        updateSection(section, formData[section]);
-        setLoading(false);
-        toast.success("Configuración actualizada correctamente");
+        try {
+            if (section === 'profile') {
+                // 1. Send ONLY email to backend (API handles filtering)
+                try {
+                    await authAPI.updateProfile(formData.profile);
+                } catch (apiError) {
+                    console.warn("API update failed, proceeding with local update:", apiError);
+                    // We suppress the error toast to allow "local simulation" as requested
+                }
+
+                // 2. Update Local Storage 'vantra_user' (Session Data)
+                // This updates the email locally even if backend failed (temporary logic)
+                const currentUser = JSON.parse(localStorage.getItem('vantra_user') || '{}');
+                const updatedUser = {
+                    ...currentUser,
+                    email: formData.profile.email,
+                    name: formData.profile.name // Local override
+                };
+                localStorage.setItem('vantra_user', JSON.stringify(updatedUser));
+
+                // 3. Update 'vantra_settings' (App Settings Context)
+                updateSection(section, formData[section]);
+
+                toast.success("Perfil actualizado", {
+                    description: "Los cambios se han guardado."
+                });
+            } else {
+                // Other sections simulate API delay for now
+                await new Promise(r => setTimeout(r, 800));
+                updateSection(section, formData[section]);
+                toast.success("Configuración actualizada correctamente");
+            }
+        } catch (error) {
+            console.error("Error saving profile:", error);
+            toast.error("Error al guardar", {
+                description: error.message || "No se pudo actualizar el perfil."
+            });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handlePasswordChange = async () => {
+        // Validation
+        if (!passwordData.current || !passwordData.new || !passwordData.confirm) {
+            toast.error("Todos los campos son obligatorios");
+            return;
+        }
+
         if (passwordData.new !== passwordData.confirm) {
             toast.error("Las contraseñas no coinciden");
             return;
         }
-        if (passwordData.new.length < 6) {
-            toast.error("La contraseña debe tener al menos 6 caracteres");
+
+        if (passwordData.new.length < 8) {
+            toast.error("La contraseña debe tener al menos 8 caracteres");
             return;
         }
 
-        setLoading(true);
-        await new Promise(r => setTimeout(r, 1000));
-        setLoading(false);
-        toast.success("Contraseña modificada con éxito");
-        setPasswordData({ current: "", new: "", confirm: "" });
+        try {
+            setLoading(true);
+
+            await authAPI.changePassword({
+                currentPassword: passwordData.current,
+                newPassword: passwordData.new
+            });
+
+            toast.success("Contraseña actualizada correctamente");
+            setPasswordData({ current: "", new: "", confirm: "" });
+        } catch (error) {
+            console.error("Error updating password:", error);
+            const msg = error.status === 401
+                ? "La contraseña actual es incorrecta"
+                : (error.message || "Error al actualizar la contraseña");
+            toast.error(msg);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <PageTransition className="h-[calc(100vh-8rem)] flex flex-col gap-6">
+        <PageTransition className="space-y-6 pb-20">
             <header className="flex-none">
                 <h1 className="text-3xl font-heading font-bold text-slate-900">Configuración</h1>
                 <p className="text-slate-500 mt-1">Administra tus preferencias y cuenta.</p>
             </header>
 
-            <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6">
+            <div className="flex flex-col md:flex-row gap-8 items-start">
                 {/* Sidebar Navigation */}
-                <aside className="w-full md:w-64 flex-shrink-0 overflow-y-auto p-1">
+                <aside className="w-full md:w-64 flex-shrink-0 sticky top-8">
                     <nav className="space-y-1">
                         {Tabs.map((tab) => {
                             const Icon = tab.icon;
@@ -87,8 +144,8 @@ export default function SettingsPage() {
                 </aside>
 
                 {/* Main Content Area */}
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 md:p-8 min-h-full">
+                <div className="flex-1 min-w-0 max-w-3xl">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8">
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={activeTab}
@@ -134,7 +191,7 @@ export default function SettingsPage() {
                                             </div>
                                         </div>
 
-                                        <div className="pt-4">
+                                        <div className="pt-4 border-t border-slate-100 mt-8">
                                             <Button onClick={() => handleSave('profile')} disabled={loading}>
                                                 {loading ? "Guardando..." : "Guardar Perfil"}
                                             </Button>

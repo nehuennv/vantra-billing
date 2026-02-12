@@ -22,8 +22,24 @@ const defaultSettings = {
 export function useSettings() {
     const [settings, setSettings] = useState(() => {
         try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            return stored ? { ...defaultSettings, ...JSON.parse(stored) } : defaultSettings;
+            const storedSettings = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+            const storedUser = JSON.parse(localStorage.getItem("vantra_user") || "null");
+
+            // Base settings merged with stored settings
+            const mergedSettings = storedSettings
+                ? { ...defaultSettings, ...storedSettings }
+                : defaultSettings;
+
+            // Override profile with vantra_user if available (Source of Truth for Auth)
+            if (storedUser) {
+                mergedSettings.profile = {
+                    ...mergedSettings.profile,
+                    name: storedUser.name || mergedSettings.profile.name,
+                    email: storedUser.email || mergedSettings.profile.email
+                };
+            }
+
+            return mergedSettings;
         } catch (error) {
             console.error("Failed to load settings:", error);
             return defaultSettings;
