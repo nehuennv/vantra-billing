@@ -58,7 +58,7 @@ const LoginPage = () => {
                     description: `Bienvenido de nuevo a ${clientConfig.name}`,
                     icon: <CheckCircle2 className="h-5 w-5 text-emerald-500" />,
                 });
-                navigate('/');
+                navigate('/crm');
             } else {
                 throw new Error("Respuesta inválida del servidor");
             }
@@ -143,7 +143,7 @@ const LoginPage = () => {
                         {clientConfig.name}
                     </h1>
                     <p className="text-sm text-zinc-500 font-medium mb-8 text-center">
-                        Inicia sesión para acceder al dashboard
+                        Inicia sesión para acceder a la plataforma.
                     </p>
 
                     <form onSubmit={handleLogin} className="w-full space-y-4">
