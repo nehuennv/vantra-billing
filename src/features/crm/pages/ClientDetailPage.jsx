@@ -171,9 +171,16 @@ export default function ClientDetailPage() {
 
                     // Parse Services from V2 Response (Grouped + Individual)
                     let rawServices = [];
-                    if (Array.isArray(svcResponse)) {
+                    // ROBUST PARSING: Check for standard 'data' array first (V1/V2 Std)
+                    if (svcResponse && Array.isArray(svcResponse.data)) {
+                        rawServices = svcResponse.data;
+                    }
+                    // Fallback: Check if response itself is an array (Legacy/Simple)
+                    else if (Array.isArray(svcResponse)) {
                         rawServices = svcResponse;
-                    } else if (svcResponse && typeof svcResponse === 'object') {
+                    }
+                    // Fallback: Check for 'grouped_services' object (Legacy Complicated)
+                    else if (svcResponse && typeof svcResponse === 'object') {
                         // Extract from grouped_services (Combos)
                         const fromGroups = (svcResponse.grouped_services || []).flatMap(g =>
                             (g.items || []).map(item => ({
@@ -192,11 +199,11 @@ export default function ClientDetailPage() {
                     // Adapt Service Instances
                     const adaptedServices = rawServices.map(s => ({
                         id: s.id,
-                        catalog_item_id: s.catalog_item_id,
+                        catalog_item_id: s.catalog_item_id || s.origin_plan_id, // Fix: Map from origin_plan_id if catalog_item_id is missing
                         name: s.name,
                         price: Number(s.unit_price || s.price), // V2 uses unit_price
+                        quantity: Number(s.quantity || 1), // Fix: Ensure quantity is mapped
                         type: 'recurring', // Default
-                        icon: s.icon || 'Wifi',
                         icon: s.icon || 'Wifi',
                         origin_combo_id: s.origin_combo_id, // Keep track of origin
                         _comboData: s._comboData // Pass through combo metadata
@@ -223,63 +230,26 @@ export default function ClientDetailPage() {
     }, [id]);
 
     // Handle Budget Changes (Smart Save: Add/Delete)
-    const handleSaveBudget = async (newActiveServices) => {
-        console.log("handleSaveBudget CALLED", newActiveServices);
+    // NOW: Just a refresh callback, because BudgetManagerModal handles the Sync.
+    const handleSaveBudget = async () => {
+        console.log("handleSaveBudget CALLED (Refresh Mode)");
         if (!client) return;
 
         const promise = async () => {
-            // 1. Identify Added Items (Items with temp ID like 'temp-...')
-            const added = newActiveServices.filter(n => n.id.toString().startsWith('temp-'));
-            console.log("Items identified as ADDED:", added);
-
-            // 2. Identify Deleted Items (Items present in old 'services' but missing in 'newActiveServices')
-            const deleted = services.filter(o => !newActiveServices.find(n => n.id === o.id));
-            console.log("Items identified as DELETED:", deleted);
-
-            // Process Adds - Grouped Logic for Combos
-            const addedGroups = {};
-            const addedSingles = [];
-
-            added.forEach(item => {
-                if (item.origin_combo_id) {
-                    if (!addedGroups[item.origin_combo_id]) {
-                        addedGroups[item.origin_combo_id] = [];
-                    }
-                    addedGroups[item.origin_combo_id].push(item);
-                } else {
-                    addedSingles.push(item);
-                }
-            });
-
-            // 1. Process Combo Groups (Use /bundle endpoint)
-            for (const [comboId, items] of Object.entries(addedGroups)) {
-                console.log(`Processing Combo Add: ${comboId} (${items.length} items)`);
-                // Use specific endpoint to ensure backend links items to combo
-                await servicesAPI.assignComboToClient(client.id, comboId);
-            }
-
-            // 2. Process Singles (Use /single endpoint)
-            for (const item of addedSingles) {
-                console.log("Processing Single Add:", item);
-                await servicesAPI.assignToClient(client.id, item.catalog_item_id, {
-                    price: item.price,
-                    origin_combo_id: null
-                });
-            }
-
-            // Process Deletes
-            for (const item of deleted) {
-                console.log("Processing Delete:", item.id);
-                await servicesAPI.remove(item.id);
-            }
-
             // Reload to sync - ROBUST PARSING FOR V1/V2
             const svcResponse = await servicesAPI.getByClient(client.id);
 
             let rawServices = [];
-            if (Array.isArray(svcResponse)) {
+            // ROBUST PARSING: Check for standard 'data' array first (V1/V2 Std)
+            if (svcResponse && Array.isArray(svcResponse.data)) {
+                rawServices = svcResponse.data;
+            }
+            // Fallback: Check if response itself is an array (Legacy/Simple)
+            else if (Array.isArray(svcResponse)) {
                 rawServices = svcResponse;
-            } else if (svcResponse && typeof svcResponse === 'object') {
+            }
+            // Fallback: Check for 'grouped_services' object (Legacy Complicated)
+            else if (svcResponse && typeof svcResponse === 'object') {
                 // Extract from grouped_services (Combos)
                 const fromGroups = (svcResponse.grouped_services || []).flatMap(g =>
                     (g.items || []).map(item => ({
@@ -297,11 +267,11 @@ export default function ClientDetailPage() {
 
             const adaptedServices = rawServices.map(s => ({
                 id: s.id,
-                catalog_item_id: s.catalog_item_id,
+                catalog_item_id: s.catalog_item_id || s.origin_plan_id, // Fix: Map from origin_plan_id if catalog_item_id is missing
                 name: s.name,
                 price: Number(s.unit_price || s.price),
+                quantity: Number(s.quantity || 1), // Fix: Ensure quantity is mapped
                 type: 'recurring',
-                icon: s.icon || 'Wifi',
                 icon: s.icon || 'Wifi',
                 origin_combo_id: s.origin_combo_id,
                 _comboData: s._comboData
@@ -311,9 +281,9 @@ export default function ClientDetailPage() {
         };
 
         toast.promise(promise(), {
-            loading: 'Actualizando presupuesto...',
-            success: 'Presupuesto actualizado correctamente',
-            error: 'Error al actualizar el presupuesto'
+            loading: 'Actualizando vista...',
+            success: 'Datos actualizados',
+            error: 'Error al refrescar datos'
         });
     };
 
@@ -582,10 +552,14 @@ export default function ClientDetailPage() {
         </PageTransition>
     );
 
-    // Derived State
-    const recurringAmount = services
+    // Calculate Totals
+    const recurringTotal = services
         .filter(s => s.type === 'recurring')
-        .reduce((sum, s) => sum + s.price, 0);
+        .reduce((sum, s) => sum + ((s.price || 0) * (s.quantity || 1)), 0);
+
+    const oneTimeTotal = services
+        .filter(s => s.type === 'onetime' || s.type === 'unique')
+        .reduce((sum, s) => sum + ((s.price || 0) * (s.quantity || 1)), 0);
 
     return (
         <PageTransition className="space-y-6 pb-20">
@@ -928,26 +902,23 @@ export default function ClientDetailPage() {
                                                         <div className="divide-y divide-slate-200/50">
                                                             {group.items.map((service, idx) => {
                                                                 const IconComponent = ICON_MAP[service.icon] || Repeat;
+                                                                // Combos usually have quantity 1 per item definition, but let's be safe
+                                                                const qty = service.quantity || 1;
+
                                                                 return (
                                                                     <div key={service.id || idx} className="px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
                                                                         <div className="flex items-center gap-3">
                                                                             <IconComponent className="h-4 w-4 text-slate-400" />
                                                                             <div className="flex flex-col">
-                                                                                <span className="text-sm font-medium text-slate-700">{service.name}</span>
+                                                                                <span className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                                                                                    {service.name}
+                                                                                    {qty > 1 && <span className="text-[10px] bg-slate-100 px-1 rounded">x{qty}</span>}
+                                                                                </span>
                                                                                 <span className="text-[10px] text-primary/70 uppercase tracking-wider font-bold">Incluido en Pack</span>
                                                                             </div>
                                                                         </div>
                                                                         <div className="flex items-center gap-3">
                                                                             <span className="text-sm font-medium text-slate-600">${service.price.toLocaleString()}</span>
-                                                                            {/* Single Delete inside Combo? Maybe risky if it breaks ratio. Let's allow it but it stays in group for now until refresh */}
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="h-6 w-6 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-full"
-                                                                                onClick={() => setServiceToDelete(service)}
-                                                                            >
-                                                                                <Trash className="h-3.5 w-3.5" />
-                                                                            </Button>
                                                                         </div>
                                                                     </div>
                                                                 );
@@ -962,6 +933,8 @@ export default function ClientDetailPage() {
                                                 <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
                                                     {singles.map((service, index) => {
                                                         const IconComponent = ICON_MAP[service.icon] || Repeat;
+                                                        const totalItemPrice = (service.price || 0) * (service.quantity || 1);
+
                                                         return (
                                                             <div key={service.id || index} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group bg-white">
                                                                 <div className="flex items-center gap-3">
@@ -969,37 +942,27 @@ export default function ClientDetailPage() {
                                                                         <IconComponent className="h-4 w-4" />
                                                                     </div>
                                                                     <div>
-                                                                        <p className="font-semibold text-slate-900 text-sm">{service.name}</p>
+                                                                        <p className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                                                                            {service.name}
+                                                                            {(service.quantity > 1) && (
+                                                                                <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
+                                                                                    x{service.quantity}
+                                                                                </span>
+                                                                            )}
+                                                                        </p>
                                                                         <p className="text-xs text-slate-500">
                                                                             {service.type === 'recurring' ? 'Recurrente Mensual' : 'Pago Único'}
                                                                         </p>
                                                                     </div>
                                                                 </div>
                                                                 <div className="text-right flex items-center gap-4">
-                                                                    <p className="font-bold text-slate-900">${service.price.toLocaleString()}</p>
-                                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/5"
-                                                                            onClick={() => {
-                                                                                setServiceToEdit({
-                                                                                    ...service,
-                                                                                    type: 'recurring'
-                                                                                });
-                                                                                setIsServiceModalOpen(true);
-                                                                            }}
-                                                                        >
-                                                                            <Edit className="h-4 w-4" />
-                                                                        </Button>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                                                                            onClick={() => setServiceToDelete(service)}
-                                                                        >
-                                                                            <Trash className="h-4 w-4" />
-                                                                        </Button>
+                                                                    <div className="flex flex-col items-end">
+                                                                        <p className="font-bold text-slate-900">${totalItemPrice.toLocaleString()}</p>
+                                                                        {(service.quantity > 1) && (
+                                                                            <p className="text-[10px] text-slate-400">
+                                                                                ${service.price.toLocaleString()} c/u
+                                                                            </p>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1026,7 +989,7 @@ export default function ClientDetailPage() {
                                 <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-between items-center">
                                     <span className="text-sm font-bold text-slate-600 uppercase">Total Mensual</span>
                                     <span className="text-xl font-bold text-primary tracking-tight">
-                                        ${recurringAmount.toLocaleString()}
+                                        ${recurringTotal.toLocaleString()}
                                     </span>
                                 </div>
                             )

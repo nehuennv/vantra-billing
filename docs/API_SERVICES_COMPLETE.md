@@ -1,670 +1,413 @@
-# 🚀 VANTRA Services API v2 - Frontend Documentation
+# 📦 Client Services API Documentation
 
-> **Arquitectura**: Catalog vs. Instance Model  
-> **Base URL**: `http://localhost:3000/api/v1`  
-> **Auth**: Header `x-api-key: {GASTON_API_SECRET}`
+> Gestión de servicios contratados por clientes. Cada servicio puede estar vinculado a un plan del catálogo (`origin_plan_id`) para trazabilidad.
 
----
-
-## 📋 Quick Reference
-
-| Module                               | Base Path   | Purpose                                 |
-| ------------------------------------ | ----------- | --------------------------------------- |
-| [Catalog](#-catalog-items)           | `/catalog`  | Product definitions (master data)       |
-| [Combos](#-combos)                   | `/combos`   | Bundle templates with calculated prices |
-| [Client Services](#-client-services) | `/services` | Client-bound service instances          |
+**Base URL:** `/api/v1/services`  
+**Autenticación:** Header `x-api-key` requerido
 
 ---
 
-## 🏗️ Architecture Overview
+## 📋 Índice
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         CATALOG LAYER (Templates)                        │
-│  ┌──────────────────┐         ┌──────────────────┐                      │
-│  │  catalog_items   │◄────────│   combo_items    │──────►│ combo_services│
-│  │  (products)      │         │  (junction)      │       │  (bundles)    │
-│  └────────┬─────────┘         └──────────────────┘       └───────────────┘
-│           │                                                              │
-└───────────┼──────────────────────────────────────────────────────────────┘
-            │ SNAPSHOT (immutable copy)
-            ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        INSTANCE LAYER (Client-bound)                     │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                        client_services                            │   │
-│  │  • catalog_item_id  → traces origin product                      │   │
-│  │  • origin_combo_id  → traces origin combo (if from bundle)       │   │
-│  │  • name, price...   → SNAPSHOT at assignment time                │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Key Concepts
-
-| Concept             | Description                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------- |
-| **Catalog Item**    | Product template with `default_price`. Changes here do NOT affect existing client services. |
-| **Combo**           | Logical grouping of catalog items. Price is calculated from items at runtime.               |
-| **Client Service**  | Immutable snapshot assigned to a client. Price locked at assignment time.                   |
-| **origin_combo_id** | Watermark that groups services from the same combo assignment.                              |
+- [Endpoints](#endpoints)
+- [Modelo de Datos](#modelo-de-datos)
+- [Códigos de Error](#códigos-de-error)
+- [Ejemplos de Uso](#ejemplos-de-uso)
 
 ---
 
-## 📦 Catalog Items
+## Endpoints
 
-Master product catalog. Price changes here don't retroactively affect assigned services.
-
-### Endpoints
-
-| Method   | Path                   | Description                    |
-| -------- | ---------------------- | ------------------------------ |
-| `GET`    | `/catalog`             | List with filters & pagination |
-| `POST`   | `/catalog`             | Create new product             |
-| `PUT`    | `/catalog/:id`         | Update product                 |
-| `DELETE` | `/catalog/:id`         | Soft delete (archive)          |
-| `POST`   | `/catalog/:id/restore` | Restore archived product       |
-| `GET`    | `/catalog/active`      | Get active items for selectors |
+| Método   | Endpoint                                 | Descripción                    |
+| -------- | ---------------------------------------- | ------------------------------ |
+| `GET`    | `/api/v1/services`                       | Lista paginada de servicios    |
+| `GET`    | `/api/v1/services/:id`                   | Obtener un servicio por ID     |
+| `POST`   | `/api/v1/services`                       | Crear nuevo servicio           |
+| `PATCH`  | `/api/v1/services/:id`                   | Actualizar servicio            |
+| `DELETE` | `/api/v1/services/:id`                   | Eliminar servicio (Permanente) |
+| `PUT`    | `/api/v1/services/client/:clientId/sync` | Sincronizar servicios (Mirror) |
+| `GET`    | `/api/v1/services/client/:clientId`      | Servicios de un cliente        |
+| `GET`    | `/api/v1/services/plan/:planId`          | Servicios de un plan           |
 
 ---
 
-### `GET /catalog`
+## Modelo de Datos
 
-List catalog items with filtering, sorting, and pagination.
+### ClientServiceItem
+
+| Campo            | Tipo          | Nullable | Default      | Descripción                       |
+| ---------------- | ------------- | -------- | ------------ | --------------------------------- |
+| `id`             | UUID          | No       | auto         | Identificador único               |
+| `client_id`      | UUID          | No       | -            | FK a tabla `clients`              |
+| `origin_plan_id` | UUID          | Sí       | null         | FK a tabla `plans` (trazabilidad) |
+| `display_code`   | string(15)    | Sí       | auto         | Código visual (ej: SRV-1001)      |
+| `name`           | string(100)   | No       | -            | Nombre del servicio               |
+| `description`    | text          | Sí       | null         | Descripción detallada             |
+| `icon`           | string(50)    | Sí       | null         | Icono (ej: "wifi", "tv")          |
+| `unit_price`     | decimal(15,2) | No       | 0.00         | Precio unitario                   |
+| `quantity`       | integer       | No       | 1            | Cantidad                          |
+| `service_type`   | enum          | Sí       | "recurring"  | Tipo: `recurring` o `one_time`    |
+| `is_active`      | boolean       | Sí       | true         | Estado activo                     |
+| `start_date`     | date          | Sí       | CURRENT_DATE | Fecha de inicio                   |
+| `created_at`     | timestamptz   | Sí       | now()        | Fecha de creación                 |
+| `updated_at`     | timestamptz   | Sí       | now()        | Última actualización              |
+
+---
+
+## Códigos de Error
+
+### Errores de Autenticación
+
+| Código         | HTTP | Mensaje                    | Causa                                  |
+| -------------- | ---- | -------------------------- | -------------------------------------- |
+| `UNAUTHORIZED` | 401  | Invalid or missing API Key | Falta header `x-api-key` o es inválido |
+
+### Errores de Validación
+
+| Código             | HTTP | Mensaje             | Causa                |
+| ------------------ | ---- | ------------------- | -------------------- |
+| `VALIDATION_ERROR` | 400  | [Detalle del campo] | Falla validación Zod |
+
+**Ejemplos de mensajes de validación:**
+
+- `"El nombre del servicio es requerido"`
+- `"El nombre no puede exceder 100 caracteres"`
+- `"El precio unitario no puede ser negativo"`
+- `"La cantidad debe ser al menos 1"`
+- `"El client_id debe ser un UUID válido"`
+- `"El formato de fecha debe ser YYYY-MM-DD"`
+
+### Errores de Negocio
+
+| Código                     | HTTP | Mensaje                                                               | Causa                                       |
+| -------------------------- | ---- | --------------------------------------------------------------------- | ------------------------------------------- |
+| `CLIENT_NOT_FOUND`         | 404  | El cliente con ID {id} no existe                                      | El `client_id` no existe en la BD           |
+| `PLAN_NOT_FOUND`           | 404  | El plan con ID {id} no existe                                         | El `origin_plan_id` no existe               |
+| `SERVICE_NOT_FOUND`        | 404  | El servicio con ID {id} no existe                                     | El servicio no existe                       |
+| `SERVICE_ALREADY_EXISTS`   | 409  | El cliente ya tiene un servicio activo con el nombre "{name}"         | Nombre duplicado para mismo cliente         |
+| `SERVICE_NAME_TAKEN`       | 409  | Ya existe un servicio activo con el nombre "{name}" para este cliente | Al actualizar a un nombre existente         |
+| `SERVICE_ALREADY_INACTIVE` | 400  | El servicio ya está desactivado                                       | Intentar desactivar un servicio ya inactivo |
+| `SERVICE_ALREADY_ACTIVE`   | 400  | El servicio ya está activo                                            | Intentar reactivar un servicio activo       |
+
+---
+
+## Ejemplos de Uso
+
+### GET /api/v1/services - Listar servicios
 
 **Query Parameters:**
 
-| Param        | Type         | Default      | Description                      |
-| ------------ | ------------ | ------------ | -------------------------------- |
-| `search`     | string       | -            | Search in name, SKU, description |
-| `is_active`  | boolean      | -            | Filter by active/archived        |
-| `min_price`  | number       | -            | Minimum price filter             |
-| `max_price`  | number       | -            | Maximum price filter             |
-| `sort_by`    | string       | `created_at` | Field to sort by                 |
-| `sort_order` | `asc`/`desc` | `desc`       | Sort direction                   |
-| `page`       | number       | 1            | Page number                      |
-| `limit`      | number       | 20           | Items per page (max 100)         |
+| Param            | Tipo           | Default | Descripción                                       |
+| ---------------- | -------------- | ------- | ------------------------------------------------- |
+| `page`           | int            | 1       | Número de página                                  |
+| `limit`          | int            | 50      | Items por página (max 100)                        |
+| `client_id`      | UUID           | -       | Filtrar por cliente                               |
+| `origin_plan_id` | UUID           | -       | Filtrar por plan origen                           |
+| `service_type`   | enum           | -       | Filtrar: `recurring` o `one_time`                 |
+| `is_active`      | "true"/"false" | -       | Filtrar por estado                                |
+| `search`         | string         | -       | Buscar por nombre, descripción o **display_code** |
 
-**Response:**
+**Request:**
+
+```http
+GET /api/v1/services?client_id=1e5422aa-88b4-4c30-9d7f-3ad152069682&is_active=true
+x-api-key: YOUR_API_KEY
+```
+
+**Response (200):**
 
 ```json
 {
   "status": "success",
   "data": [
     {
-      "id": "db766d9b-c1c0-496e-872e-c223143325a8",
-      "name": "Servicio de Internet 100MB",
-      "sku": "INET-100",
-      "description": "Plan de Internet 100 Megabits",
-      "default_price": "15000.00",
+      "id": "f761be59-7c42-4668-a3be-a7990aa22a19",
+      "client_id": "1e5422aa-88b4-4c30-9d7f-3ad152069682",
+      "origin_plan_id": "abc123...",
+      "display_code": "SRV-1042",
+      "name": "Internet Fibra 300MB",
+      "description": "Plan con IP dinámica",
+      "icon": "wifi",
+      "unit_price": 25000.0,
+      "quantity": 1,
+      "service_type": "recurring",
       "is_active": true,
-      "created_at": "2026-02-08T01:21:20.668Z",
-      "updated_at": "2026-02-08T01:21:20.668Z"
+      "start_date": "2026-02-01",
+      "created_at": "2026-02-07T10:00:00Z",
+      "updated_at": "2026-02-07T10:00:00Z"
     }
   ],
   "pagination": {
-    "total": 45,
-    "limit": 20,
+    "total": 1,
+    "limit": 50,
     "page": 1,
-    "totalPages": 3
+    "totalPages": 1
   }
 }
 ```
 
 ---
 
-### `POST /catalog`
-
-Create a new catalog item.
+### POST /api/v1/services - Crear servicio
 
 **Request Body:**
 
-```json
+| Campo            | Tipo           | Requerido | Default     | Descripción              |
+| ---------------- | -------------- | --------- | ----------- | ------------------------ |
+| `client_id`      | UUID           | ✅        | -           | ID del cliente           |
+| `name`           | string(1-100)  | ✅        | -           | Nombre del servicio      |
+| `unit_price`     | number         | ✅        | -           | Precio unitario (≥0)     |
+| `description`    | string         | ❌        | null        | Descripción              |
+| `icon`           | string(max 50) | ❌        | null        | Icono                    |
+| `quantity`       | int            | ❌        | 1           | Cantidad (≥1)            |
+| `service_type`   | enum           | ❌        | "recurring" | `recurring` o `one_time` |
+| `is_active`      | boolean        | ❌        | true        | Estado inicial           |
+| `start_date`     | string         | ❌        | null        | Formato: YYYY-MM-DD      |
+| `origin_plan_id` | UUID           | ❌        | null        | FK a plan origen         |
+
+**Request:**
+
+```http
+POST /api/v1/services
+Content-Type: application/json
+x-api-key: YOUR_API_KEY
+
 {
-  "name": "Servicio de Internet 100MB",
-  "sku": "INET-100",
-  "description": "Plan de Internet 100 Megabits",
-  "default_price": 15000
+  "client_id": "1e5422aa-88b4-4c30-9d7f-3ad152069682",
+  "name": "Internet Fibra 300MB",
+  "description": "Plan con IP dinámica",
+  "icon": "wifi",
+  "unit_price": 25000.00,
+  "service_type": "recurring",
+  "origin_plan_id": "abc123-plan-uuid"
 }
 ```
-
-| Field           | Type   | Required | Validation           |
-| --------------- | ------ | -------- | -------------------- |
-| `name`          | string | ✅       | 1-255 chars          |
-| `sku`           | string | ❌       | Unique, max 50 chars |
-| `description`   | string | ❌       | -                    |
-| `default_price` | number | ✅       | ≥ 0                  |
 
 **Response (201):**
 
 ```json
 {
   "status": "success",
-  "message": "Producto creado exitosamente en el catálogo",
+  "message": "Servicio creado exitosamente",
   "data": {
-    /* CatalogItem */
+    /* ClientServiceItem */
   }
 }
 ```
 
-**Error Codes:**
-| Code | HTTP | Description |
-|------|------|-------------|
-| `SKU_DUPLICADO` | 409 | SKU already exists |
-| `VALIDATION_ERROR` | 400 | Invalid input data |
-
----
-
-### `PUT /catalog/:id`
-
-Update an existing catalog item.
-
-> ⚠️ **IMPORTANT**: Price changes do NOT affect existing client_services. They keep their snapshot price.
-
-**Request Body:** Same as POST (all fields optional)
-
-**Response (200):**
+**Error Response (404) - Cliente no existe:**
 
 ```json
 {
-  "status": "success",
-  "message": "Producto actualizado exitosamente",
-  "data": {
-    /* Updated CatalogItem */
+  "status": "error",
+  "code": "CLIENT_NOT_FOUND",
+  "message": "El cliente con ID 1e5422aa-88b4-4c30-9d7f-3ad152069682 no existe",
+  "details": {
+    "client_id": "1e5422aa-88b4-4c30-9d7f-3ad152069682"
   }
 }
 ```
 
----
-
-### `DELETE /catalog/:id`
-
-Soft delete (archive) a catalog item.
-
-**Response (200):**
+**Error Response (409) - Servicio duplicado:**
 
 ```json
 {
-  "status": "success",
-  "message": "Producto archivado correctamente"
-}
-```
-
----
-
-### `POST /catalog/:id/restore`
-
-Restore an archived catalog item.
-
-**Response (200):**
-
-```json
-{
-  "status": "success",
-  "message": "Producto restaurado correctamente",
-  "data": {
-    /* Restored CatalogItem */
+  "status": "error",
+  "code": "SERVICE_ALREADY_EXISTS",
+  "message": "El cliente ya tiene un servicio activo con el nombre \"Internet Fibra 300MB\"",
+  "details": {
+    "client_id": "1e5422aa-...",
+    "service_name": "Internet Fibra 300MB",
+    "existing_service_id": "existing-uuid"
   }
 }
 ```
 
 ---
 
-### `GET /catalog/active`
+### PATCH /api/v1/services/:id - Actualizar servicio
 
-Get all active catalog items (for dropdowns/selectors).
+> Todos los campos son opcionales (partial update). No se puede cambiar `client_id`.
+
+**Request:**
+
+```http
+PATCH /api/v1/services/f761be59-7c42-4668-a3be-a7990aa22a19
+Content-Type: application/json
+x-api-key: YOUR_API_KEY
+
+{
+  "name": "Internet Fibra 500MB (Upgrade)",
+  "unit_price": 35000.00,
+  "icon": "rocket"
+}
+```
 
 **Response (200):**
 
 ```json
 {
   "status": "success",
-  "data": [
-    { "id": "...", "name": "Internet 100MB", "default_price": "15000.00" },
-    { "id": "...", "name": "TV Cable", "default_price": "8000.00" }
-  ]
+  "message": "Servicio actualizado exitosamente",
+  "data": {
+    /* ClientServiceItem actualizado */
+  }
 }
 ```
 
 ---
 
-## 📦 Combos
+### DELETE /api/v1/services/:id - Eliminar servicio
 
-Bundle templates. Price is calculated from component items.
+> [!WARNING]
+> **HARD DELETE**: Esta acción elimina permanentemente el servicio de la base de datos. No se puede deshacer.
 
-### Endpoints
+**Request:**
 
-| Method   | Path             | Description                         |
-| -------- | ---------------- | ----------------------------------- |
-| `GET`    | `/combos`        | List all combos with items & prices |
-| `POST`   | `/combos`        | Create combo with items (atomic)    |
-| `PUT`    | `/combos/:id`    | Update combo                        |
-| `DELETE` | `/combos/:id`    | Soft delete combo                   |
-| `GET`    | `/combos/active` | Get active combos for selectors     |
+```http
+DELETE /api/v1/services/f761be59-7c42-4668-a3be-a7990aa22a19
+x-api-key: YOUR_API_KEY
+```
 
----
-
-### `GET /combos`
-
-List all combos with populated items and calculated prices.
-
-**Response:**
+**Response (200):**
 
 ```json
 {
   "status": "success",
-  "data": [
+  "message": "Servicio eliminado permanentemente"
+}
+```
+
+---
+
+### PUT /api/v1/services/client/:clientId/sync - Sincronizar servicios (Mirror)
+
+> [!WARNING]
+> **OPERACIÓN DESTRUCTIVA**: Los servicios existentes que NO estén en el array serán eliminados permanentemente.
+
+Recibe el estado completo deseado de los servicios de un cliente. La base de datos se actualizará para reflejar exactamente lo que se envía:
+
+- Items **con `id` existente** → se actualizan.
+- Items **sin `id`** (o `id: null`) → se crean.
+- Servicios en la DB **que no estén en el array** → se eliminan permanentemente.
+
+Todo se ejecuta dentro de una **transacción ACID**.
+
+**Request:**
+
+```http
+PUT /api/v1/services/client/1e5422aa-88b4-4c30-9d7f-3ad152069682/sync
+Content-Type: application/json
+x-api-key: YOUR_API_KEY
+```
+
+```json
+{
+  "services": [
     {
-      "id": "03485bed-af5f-438e-9176-478b8a31c389",
-      "name": "Pack Triple Play",
-      "description": "Internet + TV + Telefonia",
-      "is_active": true,
-      "created_at": "2026-02-08T01:23:27.370Z",
-      "items": [
-        {
-          "id": "item-uuid",
-          "combo_service_id": "03485bed-af5f-438e-9176-478b8a31c389",
-          "catalog_item_id": "db766d9b-c1c0-496e-872e-c223143325a8",
-          "quantity": 1,
-          "catalog_item": {
-            "id": "db766d9b-c1c0-496e-872e-c223143325a8",
-            "name": "Servicio de Internet 100MB",
-            "description": "Plan de Internet 100 Megabits",
-            "default_price": 15000,
-            "is_active": true
-          }
-        }
-      ],
-      "total_calculated_price": 28000
-    }
-  ]
-}
-```
-
----
-
-### `POST /combos`
-
-Create a new combo with items (atomic transaction).
-
-**Request Body:**
-
-```json
-{
-  "name": "Pack Triple Play",
-  "description": "Internet + TV + Telefonia",
-  "items": [
-    { "catalog_item_id": "uuid-1", "quantity": 1 },
-    { "catalog_item_id": "uuid-2", "quantity": 1 },
-    { "catalog_item_id": "uuid-3", "quantity": 1 }
-  ]
-}
-```
-
-| Field                     | Type   | Required | Description               |
-| ------------------------- | ------ | -------- | ------------------------- |
-| `name`                    | string | ✅       | Combo name                |
-| `description`             | string | ❌       | Description               |
-| `items`                   | array  | ✅       | List of catalog items     |
-| `items[].catalog_item_id` | UUID   | ✅       | Reference to catalog item |
-| `items[].quantity`        | number | ❌       | Default: 1                |
-
-**Response (201):**
-
-```json
-{
-  "status": "success",
-  "message": "Combo creado exitosamente",
-  "data": {
-    "id": "03485bed-af5f-438e-9176-478b8a31c389",
-    "name": "Pack Triple Play",
-    "items": [
-      /* populated items */
-    ],
-    "total_calculated_price": 28000
-  }
-}
-```
-
-**Error Codes:**
-| Code | HTTP | Description |
-|------|------|-------------|
-| `CATALOG_ITEM_NOT_FOUND` | 404 | One or more items don't exist |
-| `COMBO_CREATION_FAILED` | 500 | Transaction rolled back |
-
----
-
-## 👤 Client Services
-
-Client-bound service instances. Immutable snapshots from catalog.
-
-### Endpoints
-
-| Method | Path                                 | Description                     |
-| ------ | ------------------------------------ | ------------------------------- |
-| `POST` | `/services/clients/:clientId/single` | Assign single service           |
-| `POST` | `/services/clients/:clientId/bundle` | Assign combo bundle             |
-| `GET`  | `/services/clients/:clientId`        | Get grouped services (UI-ready) |
-
----
-
-### `POST /services/clients/:clientId/single`
-
-Assign a single catalog item to a client. Creates an **immutable snapshot**.
-
-**Path Parameters:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `clientId` | UUID | Target client ID |
-
-**Request Body:**
-
-```json
-{
-  "catalog_item_id": "db766d9b-c1c0-496e-872e-c223143325a8",
-  "override_price": 12000,
-  "quantity": 1
-}
-```
-
-| Field             | Type   | Required | Description                           |
-| ----------------- | ------ | -------- | ------------------------------------- |
-| `catalog_item_id` | UUID   | ✅       | Catalog item to assign                |
-| `override_price`  | number | ❌       | Custom price (default: catalog price) |
-| `quantity`        | number | ❌       | Default: 1                            |
-
-**Response (201):**
-
-```json
-{
-  "status": "success",
-  "message": "Servicio asignado exitosamente",
-  "data": {
-    "id": "47806de2-e9d6-4eb0-9289-690b92def913",
-    "client_id": "1d8325c8-829c-410b-b983-9c0cba241e6c",
-    "catalog_item_id": "db766d9b-c1c0-496e-872e-c223143325a8",
-    "origin_combo_id": null,
-    "origin_plan_id": null,
-    "name": "Servicio de Internet 100MB",
-    "description": "Plan de Internet 100 Megabits",
-    "icon": null,
-    "unit_price": "15000.00",
-    "quantity": 1,
-    "service_type": "recurring",
-    "is_active": true,
-    "start_date": "2026-02-08T03:00:00.000Z",
-    "created_at": "2026-02-08T01:26:11.007Z",
-    "updated_at": "2026-02-08T01:26:11.007Z"
-  }
-}
-```
-
----
-
-### `POST /services/clients/:clientId/bundle`
-
-Assign a combo bundle to a client. Creates **multiple immutable snapshots** with `origin_combo_id` watermark.
-
-> 🔒 **ATOMIC TRANSACTION**: All services are created together or none.
-
-**Request Body:**
-
-```json
-{
-  "combo_service_id": "03485bed-af5f-438e-9176-478b8a31c389"
-}
-```
-
-**Response (201):**
-
-```json
-{
-  "status": "success",
-  "message": "Combo asignado exitosamente (3 servicios)",
-  "data": [
-    {
-      "id": "5a15e417-a6e6-4a8f-bb68-9dc88fa42a04",
-      "client_id": "1d8325c8-829c-410b-b983-9c0cba241e6c",
-      "catalog_item_id": "db766d9b-c1c0-496e-872e-c223143325a8",
-      "origin_combo_id": "03485bed-af5f-438e-9176-478b8a31c389",
-      "name": "Servicio de Internet 100MB",
-      "unit_price": "15000.00",
-      "quantity": 1,
+      "id": "f761be59-7c42-4668-a3be-a7990aa22a19",
+      "name": "Internet Fibra 300MB",
+      "unit_price": 15000,
       "service_type": "recurring",
       "is_active": true
     },
     {
-      /* TV Cable service */
-    },
-    {
-      /* VoIP service */
+      "name": "Nuevo Servicio TV HD",
+      "unit_price": 5000,
+      "service_type": "recurring"
     }
+  ]
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "status": "success",
+  "message": "Sincronización completada: 1 creados, 1 actualizados, 2 eliminados",
+  "data": [
+    /* Array final de servicios del cliente */
+  ],
+  "summary": {
+    "created": 1,
+    "updated": 1,
+    "deleted": 2,
+    "total": 2
+  }
+}
+```
+
+---
+
+### GET /api/v1/services/client/:clientId - Servicios de un cliente
+
+**Query Parameters:**
+
+| Param         | Default | Descripción                    |
+| ------------- | ------- | ------------------------------ |
+| `active_only` | "true"  | "false" para incluir inactivos |
+
+**Request:**
+
+```http
+GET /api/v1/services/client/1e5422aa-88b4-4c30-9d7f-3ad152069682?active_only=true
+x-api-key: YOUR_API_KEY
+```
+
+**Response (200):**
+
+```json
+{
+  "status": "success",
+  "data": [
+    /* Array de ClientServiceItem */
   ],
   "count": 3
 }
 ```
 
-**Error Codes:**
-| Code | HTTP | Description |
-|------|------|-------------|
-| `CLIENT_NOT_FOUND` | 404 | Client doesn't exist |
-| `COMBO_NOT_FOUND` | 404 | Combo doesn't exist |
-| `COMBO_ARCHIVED` | 404 | Combo is inactive |
-| `EMPTY_COMBO` | 400 | Combo has no items |
-| `ITEM_ARCHIVED` | 404 | One or more items are archived |
-
 ---
 
-### `GET /services/clients/:clientId`
+### GET /api/v1/services/plan/:planId - Servicios de un plan
 
-Get client services **grouped by combo** for accordion UI.
+> Obtiene todos los servicios derivados de un plan específico (útil para actualizaciones masivas).
+
+**Request:**
+
+```http
+GET /api/v1/services/plan/abc123-plan-uuid
+x-api-key: YOUR_API_KEY
+```
 
 **Response (200):**
 
 ```json
 {
   "status": "success",
-  "grouped_services": [
-    {
-      "combo_id": "03485bed-af5f-438e-9176-478b8a31c389",
-      "combo_name": "Pack Triple Play",
-      "items": [
-        {
-          "id": "5a15e417-a6e6-4a8f-bb68-9dc88fa42a04",
-          "name": "Servicio de Internet 100MB",
-          "unit_price": "15000.00",
-          "quantity": 1,
-          "is_active": true
-        },
-        {
-          /* TV Cable */
-        },
-        {
-          /* VoIP */
-        }
-      ],
-      "subtotal": 28000
-    }
+  "data": [
+    /* Array de ClientServiceItem con ese origin_plan_id */
   ],
-  "individual_services": [
-    {
-      "id": "47806de2-e9d6-4eb0-9289-690b92def913",
-      "name": "Internet 100MB (individual)",
-      "unit_price": "15000.00",
-      "quantity": 1,
-      "is_active": true
-    }
-  ],
-  "total_monthly": 43000
-}
-```
-
-### Frontend Usage (React Example)
-
-```tsx
-// Render grouped services as accordion
-{
-  response.grouped_services.map((group) => (
-    <Accordion key={group.combo_id}>
-      <AccordionSummary>
-        <Typography>{group.combo_name}</Typography>
-        <Chip label={`$${group.subtotal.toLocaleString()}`} />
-      </AccordionSummary>
-      <AccordionDetails>
-        {group.items.map((service) => (
-          <ServiceRow key={service.id} service={service} />
-        ))}
-      </AccordionDetails>
-    </Accordion>
-  ));
-}
-
-// Render individual services as flat list
-{
-  response.individual_services.map((service) => (
-    <ServiceRow key={service.id} service={service} />
-  ));
-}
-
-// Total
-<Typography variant="h5">
-  Total Mensual: ${response.total_monthly.toLocaleString()}
-</Typography>;
-```
-
----
-
-## 📊 TypeScript Types
-
-```typescript
-// Catalog Item
-interface CatalogItem {
-  id: string;
-  name: string;
-  sku: string | null;
-  description: string | null;
-  default_price: string; // Decimal as string
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-// Combo
-interface ComboService {
-  id: string;
-  name: string;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  items: ComboItem[];
-  total_calculated_price: number;
-}
-
-interface ComboItem {
-  id: string;
-  combo_service_id: string;
-  catalog_item_id: string;
-  quantity: number;
-  catalog_item: CatalogItem;
-}
-
-// Client Service (Instance)
-interface ClientService {
-  id: string;
-  client_id: string;
-  catalog_item_id: string | null;
-  origin_combo_id: string | null;
-  origin_plan_id: string | null;
-  name: string;
-  description: string | null;
-  icon: string | null;
-  unit_price: string; // Decimal as string
-  quantity: number;
-  service_type: string;
-  is_active: boolean;
-  start_date: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// Grouped Response
-interface GroupedServicesResponse {
-  status: "success";
-  grouped_services: {
-    combo_id: string;
-    combo_name: string;
-    items: ClientService[];
-    subtotal: number;
-  }[];
-  individual_services: ClientService[];
-  total_monthly: number;
+  "count": 45
 }
 ```
 
 ---
 
-## ⚠️ Error Response Format
+## Notas de Implementación
 
-All errors follow RFC 7807 format:
+### Snapshot Pattern
 
-```json
-{
-  "status": "error",
-  "code": "ITEM_NOT_FOUND",
-  "message": "El producto no existe en el catálogo",
-  "details": {
-    "catalog_item_id": "invalid-uuid"
-  },
-  "timestamp": "2026-02-08T01:30:00.000Z"
-}
-```
+El campo `origin_plan_id` implementa el patrón **Snapshot**:
 
-### Common Error Codes
+- Cuando se crea un servicio desde un plan, se copia `name`, `description`, `unit_price`, `icon` al servicio
+- El `origin_plan_id` guarda la referencia al plan original
+- Si el plan cambia de precio, los servicios existentes **mantienen su precio pactado**
+- Permite consultar: "¿Cuántos clientes tienen el Plan X?" con `GET /api/v1/services/plan/:planId`
 
-| Code                | HTTP | Description                  |
-| ------------------- | ---- | ---------------------------- |
-| `VALIDATION_ERROR`  | 400  | Invalid input data           |
-| `UNAUTHORIZED`      | 401  | Invalid or missing API key   |
-| `CLIENT_NOT_FOUND`  | 404  | Client doesn't exist         |
-| `ITEM_NOT_FOUND`    | 404  | Catalog item doesn't exist   |
-| `COMBO_NOT_FOUND`   | 404  | Combo doesn't exist          |
-| `SERVICE_NOT_FOUND` | 404  | Client service doesn't exist |
-| `ITEM_ARCHIVED`     | 404  | Item/combo is archived       |
-| `SKU_DUPLICADO`     | 409  | SKU already exists           |
-| `INTERNAL_ERROR`    | 500  | Unexpected server error      |
+### Service Types
 
----
-
-## 🔑 Authentication
-
-All endpoints require the `x-api-key` header:
-
-```bash
-curl -H "x-api-key: gaston_sec_2026_xK9mPq4wL8nR" \
-     http://localhost:3000/api/v1/catalog
-```
-
----
-
-## 📝 Changelog
-
-### v2.0.0 (2026-02-07)
-
-**New Features:**
-
-- ✨ Catalog vs. Instance architecture
-- ✨ Combo bundles with calculated prices
-- ✨ Single service assignment from catalog
-- ✨ Bundle assignment with atomic transactions
-- ✨ Grouped services response for accordion UI
-- ✨ Traceability via `catalog_item_id` and `origin_combo_id`
-
-**Breaking Changes:**
-
-- 🔥 Removed `status` column from `client_services` (use `is_active` instead)
-- 🔥 Price updates to catalog items don't affect existing client services
-
----
-
-_Generated: 2026-02-07 22:32 ART_
+| Tipo        | Descripción                 | Uso típico            |
+| ----------- | --------------------------- | --------------------- |
+| `recurring` | Servicio recurrente mensual | Internet, TV, Hosting |
+| `one_time`  | Cargo único                 | Instalación, Equipos  |

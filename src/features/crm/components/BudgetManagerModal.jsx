@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2, Search, CheckCircle2, LayoutGrid, Package, Layers, ChevronRight, AlertCircle, Wifi, Zap, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../components/ui/Dialog';
-import { catalogAPI, combosAPI } from '../../../services/apiClient';
+import { catalogAPI, combosAPI, servicesAPI } from '../../../services/apiClient';
 
 const ICON_MAP = {
     'Wifi': Wifi, 'Zap': Zap, 'Globe': Globe, 'Monitor': Monitor,
@@ -24,48 +24,47 @@ const inferIcon = (name) => {
 
 export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
     // State is now polymorphic:
-    // Item = { type: 'single', service: ServiceData } 
-    //      | { type: 'combo', id: string, name: string, price: number, items: ServiceData[] }
+    // Item = {
+    //    type: 'single' | 'combo',
+    //    id: string, // Real UUID or temp-ID
+    //    catalog_item_id: string, // Real UUID if from catalog
+    //    name: string,
+    //    price: number,
+    //    // ... specific fields
+    //    shouldCreateInCatalog: boolean // NEW FLAG for custom items
+    // }
+
     const [budgetItems, setBudgetItems] = useState([]);
+    const [isSubmitting, setIsSubmitting] = useState(false); // UI Block
 
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState('services'); // 'services' | 'packages'
     const [catalog, setCatalog] = useState([]);
     const [packages, setPackages] = useState([]);
 
+    // New Custom Item State
+    const [showCustomForm, setShowCustomForm] = useState(false);
+    const [customItem, setCustomItem] = useState({ name: '', price: '', quantity: 1 });
+
     // Hydrate State on Open
     useEffect(() => {
         if (isOpen && client?.activeServices) {
             const rawServices = client.activeServices;
             const newBudgetItems = [];
-            const comboGroups = {}; // Map<origin_combo_id, { items: [] }>
 
-            // 1. Group by origin_combo_id
-            rawServices.forEach(svc => {
-                if (svc.origin_combo_id) {
-                    if (!comboGroups[svc.origin_combo_id]) {
-                        comboGroups[svc.origin_combo_id] = {
-                            id: svc.origin_combo_id,
-                            items: []
-                        };
-                    }
-                    comboGroups[svc.origin_combo_id].items.push(svc);
-                } else {
-                    newBudgetItems.push({ type: 'single', service: svc });
-                }
-            });
+            // Map existing services to budget items
+            // We flat map them because the sync endpoint takes a flat list of items
 
-            // 2. Process Groups into Combo Items
-            Object.values(comboGroups).forEach(group => {
-                // Calculate total from items as initial state
-                const total = group.items.reduce((sum, i) => sum + (Number(i.price) || 0), 0);
-
+            rawServices.forEach(s => {
                 newBudgetItems.push({
-                    type: 'combo',
-                    id: group.id, // This is the origin_combo_id (UUID or whatever ID used)
-                    name: 'Plan de Servicios', // Placeholder, will update with package match if possible
-                    price: total,
-                    items: group.items
+                    type: 'single',
+                    id: s.id, // Existing instance ID (not used for sync matching, but for key)
+                    catalog_item_id: s.catalog_item_id,
+                    name: s.name,
+                    price: Number(s.unit_price || s.price),
+                    quantity: Number(s.quantity || 1),
+                    icon: s.icon,
+                    shouldCreateInCatalog: false
                 });
             });
 
@@ -75,7 +74,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
             const loadData = async () => {
                 try {
                     const [catRes, comboRes] = await Promise.all([
-                        catalogAPI.getAll({ limit: 100 }),
+                        catalogAPI.getAll({ limit: 100, is_custom: 'false' }),
                         combosAPI.getAll()
                     ]);
 
@@ -83,34 +82,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                     const packagesData = comboRes.data || [];
 
                     setCatalog(catalogData);
-
-                    // Enrich packages: If price is missing/0/NaN, calculate from items
-                    const enrichedPackages = packagesData.map(pkg => {
-                        let finalPrice = Number(pkg.price);
-
-                        // If invalid price, sum up components
-                        if (isNaN(finalPrice) || finalPrice === 0) {
-                            finalPrice = (pkg.items || []).reduce((sum, item) => {
-                                const catItem = catalogData.find(c => c.id === item.catalog_item_id);
-                                return sum + ((Number(catItem?.default_price) || 0) * (Number(item.quantity) || 1));
-                            }, 0);
-                        }
-
-                        return { ...pkg, price: finalPrice };
-                    });
-
-                    setPackages(enrichedPackages);
-
-                    // Update Combo Names in budgetItems if we can match origin_combo_id
-                    setBudgetItems(prev => prev.map(item => {
-                        if (item.type === 'combo') {
-                            const foundPkg = enrichedPackages.find(p => p.id === item.id);
-                            if (foundPkg) {
-                                return { ...item, name: foundPkg.name };
-                            }
-                        }
-                        return item;
-                    }));
+                    setPackages(packagesData);
 
                 } catch (err) {
                     console.error("Error loading catalog/combos", err);
@@ -136,19 +108,38 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
     const handleAddService = (service) => {
         const newService = {
             id: `temp-${Math.random()}`,
-            catalog_item_id: service.id,
+            catalog_item_id: service.id, // Known ID
             name: service.name,
             price: Number(service.default_price),
-            type: 'recurring',
+            quantity: 1,
+            type: 'single',
             icon: inferIcon(service.name),
-            startDate: new Date().toISOString().split('T')[0],
-            origin_combo_id: null
+            shouldCreateInCatalog: false
         };
-        setBudgetItems(prev => [...prev, { type: 'single', service: newService }]);
+        setBudgetItems(prev => [...prev, newService]);
+    };
+
+    const handleAddCustomItem = () => {
+        if (!customItem.name || !customItem.price) return;
+
+        const newService = {
+            id: `temp-custom-${Math.random()}`,
+            catalog_item_id: null, // Unknown yet
+            name: customItem.name,
+            price: Number(customItem.price),
+            quantity: Number(customItem.quantity || 1),
+            type: 'single',
+            icon: inferIcon(customItem.name),
+            shouldCreateInCatalog: true // Flag!
+        };
+
+        setBudgetItems(prev => [...prev, newService]);
+        setCustomItem({ name: '', price: '', quantity: 1 });
+        setShowCustomForm(false);
     };
 
     const handleAddPackage = (pkg) => {
-        // 1. Expand Items from Catalog
+        // Expand Items from Catalog
         const rawItems = (pkg.items || []).map(pi => {
             const catItem = catalog.find(c => c.id === pi.catalog_item_id);
             if (!catItem) return null;
@@ -160,67 +151,33 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
 
         if (rawItems.length === 0) return;
 
-        // 2. Expand Quantities
-        const expandedItems = [];
+        // Add each item individually to the list
+        const newItems = [];
         rawItems.forEach(item => {
             for (let i = 0; i < item.quantity; i++) {
-                expandedItems.push({ ...item }); // Clone
+                newItems.push({
+                    id: `temp-${Math.random()}`,
+                    catalog_item_id: item.id,
+                    name: item.name,
+                    price: Number(item.default_price),
+                    quantity: 1,
+                    type: 'single', // We treat them as single items for simplicity in Mirror mode
+                    icon: inferIcon(item.name),
+                    shouldCreateInCatalog: false
+                });
             }
         });
 
-        // 3. Price Distribution Logic
-        const targetTotal = Number(pkg.price);
-        const originalTotal = expandedItems.reduce((sum, item) => sum + Number(item.default_price), 0);
+        setBudgetItems(prev => [...prev, ...newItems]);
+    };
 
-        const finalItems = expandedItems.map(item => {
-            let info = {
-                id: `temp-combo-item-${Math.random()}`,
-                catalog_item_id: item.id,
-                name: item.name,
-                icon: inferIcon(item.name),
-                type: 'recurring',
-                startDate: new Date().toISOString().split('T')[0],
-                // Temporary price, will adjust below
-                price: Number(item.default_price)
-            };
+    const handleQuantityChange = (index, newQuantity) => {
+        const qty = parseInt(newQuantity);
+        if (isNaN(qty) || qty < 1) return;
 
-            // Calculate Prorated Price
-            if (originalTotal > 0) {
-                const ratio = Number(item.default_price) / originalTotal;
-                const prorated = targetTotal * ratio;
-                // Round to 2 decimals floor to avoid overshooting, we add remainder later
-                info.price = Math.floor(prorated * 100) / 100;
-            } else {
-                // Determine price if original total is 0?
-                // Split evenly
-                info.price = Math.floor((targetTotal / expandedItems.length) * 100) / 100;
-            }
-            return info;
-        });
-
-        // 4. Distribute Remainder (Cent adjustment)
-        const currentSum = finalItems.reduce((sum, i) => sum + i.price, 0);
-        let remainder = targetTotal - currentSum;
-
-        // Fix floating point epsilon
-        remainder = Math.round(remainder * 100) / 100;
-
-        if (finalItems.length > 0 && Math.abs(remainder) > 0) {
-            // Add remainder to first item
-            finalItems[0].price = Number((finalItems[0].price + remainder).toFixed(2));
-        }
-
-        // 5. Create Combo Entry
-        // We use the Bundle Definition ID as the 'origin_combo_id'
-        const newCombo = {
-            type: 'combo',
-            id: pkg.id, // Bundle Definition ID as origin_combo_id
-            name: pkg.name,
-            price: targetTotal,
-            items: finalItems
-        };
-
-        setBudgetItems(prev => [...prev, newCombo]);
+        const newItems = [...budgetItems];
+        newItems[index] = { ...newItems[index], quantity: qty };
+        setBudgetItems(newItems);
     };
 
     const handleRemoveItem = (index) => {
@@ -229,112 +186,161 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
         setBudgetItems(newItems);
     };
 
-    const handleSaveInternal = () => {
-        // Flatten Structure
-        const flatServices = [];
+    // --- ORCHESTRATOR ---
+    const handleSaveChanges = async () => {
+        if (isSubmitting) return;
+        setIsSubmitting(true);
 
-        budgetItems.forEach(item => {
-            if (item.type === 'single') {
-                flatServices.push({
-                    ...item.service,
-                    origin_combo_id: null
-                });
-            } else if (item.type === 'combo') {
-                item.items.forEach(subItem => {
-                    flatServices.push({
-                        ...subItem,
-                        origin_combo_id: item.id // Critical: Link to Combo
-                    });
-                });
+        try {
+            // STEP 1: Creación Upstream (Items Custom)
+            const itemsToCreate = budgetItems.filter(i => i.shouldCreateInCatalog);
+
+            // Map of tempID -> realCatalogItemID
+            const tempIdMap = {};
+
+            if (itemsToCreate.length > 0) {
+                // Execute sequentially or parallel. Parallel is faster.
+                await Promise.all(itemsToCreate.map(async (item) => {
+                    const payload = {
+                        name: item.name,
+                        default_price: item.price,
+                        is_custom: true // STRICT REQUIREMENT
+                    };
+
+                    try {
+                        const res = await catalogAPI.create(payload);
+                        const newItem = res.data || res;
+                        tempIdMap[item.id] = newItem.id;
+                    } catch (err) {
+                        console.error("Failed to create custom item", item, err);
+                        throw new Error(`Error creando item: ${item.name}`);
+                    }
+                }));
             }
-        });
 
-        onSave(flatServices);
+            // STEP 2: Mapeo de IDs y Preparación del Payload
+            const finalPayload = budgetItems.map(item => {
+                let realCatalogId = item.catalog_item_id;
+
+                // If it was a custom item, get the new ID
+                if (item.shouldCreateInCatalog && tempIdMap[item.id]) {
+                    realCatalogId = tempIdMap[item.id];
+                }
+
+                if (!realCatalogId) {
+                    // Should not happen if logic is correct, but safety check
+                    console.warn("Item missing catalog_item_id", item);
+                    return null;
+                }
+
+                return {
+                    // STRICT DOCS ADHERENCE: Include ID for existing items
+                    id: (item.id && !item.id.toString().startsWith('temp-')) ? item.id : undefined,
+
+                    origin_plan_id: realCatalogId, // Corresponds to catalog/plan ID
+                    name: item.name,
+                    unit_price: item.price, // Mapped from internal 'price'
+                    quantity: item.quantity || 1,
+                    service_type: 'recurring',
+                    is_active: true,
+
+                    // Legacy/Backup fields
+                    catalog_item_id: realCatalogId,
+                    price: item.price
+                };
+            }).filter(Boolean);
+
+            console.log("Sync Payload:", finalPayload);
+
+            // STEP 3: Sincronización Downstream
+            await servicesAPI.sync(client.id, finalPayload);
+
+            onSave(); // Refresh parent
+            onClose(); // Close modal
+
+        } catch (error) {
+            console.error("Error saving budget:", error);
+            // Optionally show error toast here or let parent handle
+            alert("Error al guardar el presupuesto: " + error.message);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     // Calculate Total
-    const totalBudget = budgetItems.reduce((sum, item) => {
-        if (item.type === 'single') return sum + (item.service.price || 0);
-        if (item.type === 'combo') return sum + (item.price || 0);
-        return sum;
-    }, 0);
-
+    const totalBudget = budgetItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
 
     // --- RENDERING HELPERS ---
 
     const renderSingleItem = (item, index) => {
-        const { service } = item;
-        const iconName = service.icon || inferIcon(service.name || '');
+        const iconName = item.icon || inferIcon(item.name || '');
         const Icon = ICON_MAP[iconName] || Zap;
+        const totalItemPrice = (item.price || 0) * (item.quantity || 1);
 
         return (
-            <div key={`single-${index}`} className="flex justify-between items-center p-3 rounded-lg border border-slate-100 bg-white group hover:border-slate-300 transition-all mb-2 shadow-sm">
-                <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500">
+            <div key={item.id || index} className={`flex justify-between items-center p-3 rounded-lg border ${item.shouldCreateInCatalog ? 'border-primary/30 bg-primary/5' : 'border-slate-100 bg-white'} group hover:border-slate-300 transition-all mb-2 shadow-sm`}>
+                <div className="flex items-center gap-3 flex-1">
+                    <div className={`h-9 w-9 rounded-full border flex items-center justify-center ${item.shouldCreateInCatalog ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
                         <Icon className="h-4 w-4" />
                     </div>
-                    <div>
-                        <p className="font-medium text-slate-800 text-sm">{service.name}</p>
-                        <p className="text-xs text-slate-500">${(service.price || 0).toLocaleString()} {service.type === 'recurring' && '/ mes'}</p>
+                    <div className="flex-1">
+                        <p className="font-medium text-slate-800 text-sm flex items-center gap-2">
+                            {item.name}
+                            {item.shouldCreateInCatalog && <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded-full">NUEVO</span>}
+                        </p>
+                        <div className="text-xs text-slate-500 flex items-center gap-2">
+                            <span>${(item.price || 0).toLocaleString()} c/u</span>
+                            {item.type === 'recurring' && <span className="text-slate-400">/ mes</span>}
+                        </div>
                     </div>
                 </div>
-                <button
-                    onClick={() => handleRemoveItem(index)}
-                    className="text-slate-400 hover:text-rose-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"
-                >
-                    <Trash2 className="h-4 w-4" />
-                </button>
-            </div>
-        );
-    };
 
-    const renderComboItem = (item, index) => {
-        return (
-            <div key={`combo-${index}`} className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden mb-3 transition-all hover:border-slate-300 hover:shadow-sm group">
-                {/* Header */}
-                <div className="px-4 py-3 bg-slate-100/50 flex justify-between items-center border-b border-slate-200">
-                    <div className="flex items-center gap-2">
-                        <Layers className="h-4 w-4 text-primary" />
-                        <span className="font-bold text-slate-800 text-sm">{item.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <span className="font-bold text-slate-700 text-sm">
-                            ${(item.price || 0).toLocaleString()}
-                        </span>
+                <div className="flex items-center gap-4">
+                    {/* Quantity Selector */}
+                    <div className="flex items-center border border-slate-200 rounded-md overflow-hidden bg-white h-8">
                         <button
-                            onClick={() => handleRemoveItem(index)}
-                            className="text-slate-400 hover:text-rose-600 p-1 rounded-md hover:bg-rose-50 transition-colors"
-                            title="Eliminar Plan Completo"
+                            className="px-2 hover:bg-slate-50 text-slate-500 transition-colors"
+                            onClick={() => handleQuantityChange(index, (item.quantity || 1) - 1)}
+                            disabled={(item.quantity || 1) <= 1}
                         >
-                            <Trash2 className="h-4 w-4" />
+                            -
+                        </button>
+                        <input
+                            type="text" // Use text to avoid spinner on some browsers, controlled by handler
+                            className="w-8 text-center text-xs font-semibold text-slate-700 outline-none border-x border-slate-200 py-1"
+                            value={item.quantity || 1}
+                            onChange={(e) => handleQuantityChange(index, e.target.value)}
+                        />
+                        <button
+                            className="px-2 hover:bg-slate-50 text-slate-500 transition-colors"
+                            onClick={() => handleQuantityChange(index, (item.quantity || 1) + 1)}
+                        >
+                            +
                         </button>
                     </div>
-                </div>
 
-                {/* Body (Items) */}
-                <ul className="p-3 space-y-1">
-                    {item.items.map((sub, idx) => {
-                        const iconName = sub.icon || inferIcon(sub.name || '');
-                        const Icon = ICON_MAP[iconName] || Zap;
-                        return (
-                            <li key={idx} className="flex items-center justify-between text-sm py-1 px-1 rounded hover:bg-slate-100">
-                                <div className="flex items-center gap-2 text-slate-700">
-                                    <Icon className="h-3 w-3 text-slate-400" />
-                                    <span>{sub.name}</span>
-                                </div>
-                                <span className="text-xs text-slate-500 font-mono">
-                                    ${sub.price.toLocaleString()}
-                                </span>
-                            </li>
-                        );
-                    })}
-                </ul>
+                    {/* Final Price */}
+                    <div className="w-20 text-right">
+                        <span className="font-bold text-slate-900 text-sm">
+                            ${totalItemPrice.toLocaleString()}
+                        </span>
+                    </div>
+
+                    {/* Delete */}
+                    <button
+                        onClick={() => handleRemoveItem(index)}
+                        className="text-slate-400 hover:text-rose-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"
+                        title="Eliminar"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </button>
+                </div>
             </div>
         );
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpen} onOpenChange={isSubmitting ? () => { } : onClose}>
             <DialogContent className="sm:max-w-6xl w-full h-[80vh] p-0 overflow-hidden flex flex-col gap-0 border-0">
                 <DialogHeader className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-row items-center justify-between space-y-0">
                     <div>
@@ -439,18 +445,57 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar mb-4">
                             {budgetItems.length > 0 ? (
                                 <div>
-                                    {budgetItems.map((item, index) => {
-                                        if (item.type === 'combo') return renderComboItem(item, index);
-                                        return renderSingleItem(item, index);
-                                    })}
+                                    {budgetItems.map((item, index) => renderSingleItem(item, index))}
                                 </div>
                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center p-8 border-2 border-dashed border-slate-100 rounded-xl">
+                                <div className="h-48 flex flex-col items-center justify-center text-slate-400 text-center p-8 border-2 border-dashed border-slate-100 rounded-xl">
                                     <p className="text-sm">No hay servicios en el presupuesto.</p>
                                     <p className="text-xs mt-1">Agrega servicios o planes desde el panel izquierdo.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* CUSTOM ITEM FORM (Pinned to Bottom) */}
+                        <div className="mt-auto border-t border-slate-100 pt-4">
+                            {!showCustomForm ? (
+                                <Button
+                                    variant="outline"
+                                    className="w-full border-dashed border-slate-300 text-slate-500 hover:text-primary hover:border-primary hover:bg-slate-50"
+                                    onClick={() => setShowCustomForm(true)}
+                                >
+                                    <Plus className="h-4 w-4 mr-2" /> Agregar Item Manual
+                                </Button>
+                            ) : (
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 animate-in slide-in-from-bottom-2 fade-in">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-xs font-bold text-slate-500 uppercase">Nuevo Item Personalizado</p>
+                                        <button onClick={() => setShowCustomForm(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
+                                    </div>
+                                    <div className="flex gap-2 mb-2">
+                                        <input
+                                            className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary"
+                                            placeholder="Descripción (ej: Instalación Especial)"
+                                            value={customItem.name}
+                                            onChange={e => setCustomItem(prev => ({ ...prev, name: e.target.value }))}
+                                        />
+                                        <input
+                                            type="number"
+                                            className="w-24 px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary"
+                                            placeholder="Precio"
+                                            value={customItem.price}
+                                            onChange={e => setCustomItem(prev => ({ ...prev, price: e.target.value }))}
+                                        />
+                                    </div>
+                                    <Button
+                                        className="w-full bg-slate-800 text-white hover:bg-slate-700"
+                                        disabled={!customItem.name || !customItem.price}
+                                        onClick={handleAddCustomItem}
+                                    >
+                                        Agregar al Listado
+                                    </Button>
                                 </div>
                             )}
                         </div>
@@ -458,12 +503,19 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                 </div>
 
                 <DialogFooter className="px-6 py-4 bg-white border-t border-slate-100 flex justify-end gap-2 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.05)] z-10">
-                    <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+                    <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
                     <Button
-                        onClick={handleSaveInternal}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg shadow-primary/20"
+                        onClick={handleSaveChanges}
+                        disabled={isSubmitting}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg shadow-primary/20 min-w-[140px]"
                     >
-                        <CheckCircle2 className="h-4 w-4" /> Guardar Cambios
+                        {isSubmitting ? (
+                            <>Sincronizando...</>
+                        ) : (
+                            <>
+                                <CheckCircle2 className="h-4 w-4" /> Confirmar Cambios
+                            </>
+                        )}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -110,7 +110,7 @@ export default function ServicesPage() {
         setIsLoading(true);
         try {
             const [catalogRes, combosRes] = await Promise.allSettled([
-                catalogAPI.getAll({ limit: 100 }),
+                catalogAPI.getAll({ limit: 100, is_custom: 'false' }), // Filter: Only standard items
                 combosAPI.getAll()
             ]);
 

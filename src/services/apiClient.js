@@ -179,7 +179,7 @@ export const catalogAPI = {
     },
 
     create: (data) => {
-        // data: { name, sku, description, default_price }
+        // data: { name, default_price, ... , is_custom: true }
         return request('/v1/catalog', 'POST', data);
     },
 
@@ -221,38 +221,34 @@ export const combosAPI = {
 export const servicesAPI = {
     // List services for a specific client
     getByClient: (clientId) => {
-        return request(`/v1/services/clients/${clientId}`, 'GET');
+        // Strict path: /services/client/:clientId (Singular)
+        return request(`/v1/services/client/${clientId}`, 'GET');
     },
 
-    // Assign a single catalog item to a client
-    assignToClient: (clientId, catalogItemId, options = {}) => {
-        // options can be a number (price override legacy) or an object { price, origin_combo_id }
-        const payload = { catalog_item_id: catalogItemId };
+    // Sync full budget (Mirror)
+    sync: (clientId, servicesArray) => {
+        // Strict path: /services/client/:clientId/sync (Singular)
+        // Payload: { services: [{ ... }] } wrapper is REQUIRED by docs
+        return request(`/v1/services/client/${clientId}/sync`, 'PUT', { services: servicesArray });
+    },
 
+    // Legacy assign for backward compatibility if needed, but discouraged
+    assignToClient: (clientId, catalogItemId, options = {}) => {
+        const payload = { catalog_item_id: catalogItemId };
         if (typeof options === 'number') {
             payload.price = options;
         } else if (typeof options === 'object') {
             if (options.price !== undefined) payload.price = options.price;
             if (options.origin_combo_id) payload.origin_combo_id = options.origin_combo_id;
         }
-
         return request(`/v1/services/clients/${clientId}/single`, 'POST', payload);
     },
 
-    // Assign a combo/bundle to a client
     assignComboToClient: (clientId, comboId) => {
         return request(`/v1/services/clients/${clientId}/bundle`, 'POST', { combo_service_id: comboId });
     },
 
-    // Remove a service instance from a client
-    // Remove a service instance from a client
     remove: (serviceInstanceId) => {
-        // Correct endpoint should likely be /v1/services/:id based on standard REST for this project
-        return request(`/v1/services/${serviceInstanceId}`, 'DELETE');
-    },
-
-    // Alias for compatibility if mockBackend calls .delete()
-    delete: (serviceInstanceId) => {
         return request(`/v1/services/${serviceInstanceId}`, 'DELETE');
     }
 };
