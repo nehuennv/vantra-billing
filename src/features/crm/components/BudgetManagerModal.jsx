@@ -46,14 +46,17 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
     const [showCustomForm, setShowCustomForm] = useState(false);
     const [customItem, setCustomItem] = useState({ name: '', price: '', quantity: 1 });
 
-    // Accordion State for Packages
+    // Accordion State for Packages (Catalog)
     const [expandedPackages, setExpandedPackages] = useState({});
+    // Accordion State for Budget Items (Active Budget)
+    const [expandedBudgetPackages, setExpandedBudgetPackages] = useState({});
 
     const togglePackage = (pkgId) => {
-        setExpandedPackages(prev => ({
-            ...prev,
-            [pkgId]: !prev[pkgId]
-        }));
+        setExpandedPackages(prev => ({ ...prev, [pkgId]: !prev[pkgId] }));
+    };
+
+    const toggleBudgetPackage = (id) => {
+        setExpandedBudgetPackages(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
     // Hydrate State on Open
@@ -62,19 +65,64 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
             const rawServices = client.activeServices;
             const newBudgetItems = [];
 
-            // Map existing services to budget items
-            // We flat map them because the sync endpoint takes a flat list of items
+            // Group by origin_plan_id
+            const grouped = {}; // { planId: [services] }
+            const singles = [];
 
             rawServices.forEach(s => {
+                if (s.origin_plan_id) {
+                    if (!grouped[s.origin_plan_id]) grouped[s.origin_plan_id] = [];
+                    grouped[s.origin_plan_id].push(s);
+                } else {
+                    singles.push(s);
+                }
+            });
+
+            // 1. Process Singles
+            singles.forEach(s => {
                 newBudgetItems.push({
                     type: 'single',
-                    id: s.id, // Existing instance ID (not used for sync matching, but for key)
-                    catalog_item_id: s.catalog_item_id,
+                    id: s.id,
+                    catalog_item_id: s.catalog_item_id || s.origin_plan_id,
                     name: s.name,
                     price: Number(s.unit_price || s.price),
                     quantity: Number(s.quantity || 1),
                     icon: s.icon,
                     shouldCreateInCatalog: false
+                });
+            });
+
+            // 2. Process Groups (Packages)
+            // We need to wait for 'packages' (catalog) to be loaded to get the plan name if possible,
+            // but we might not have it initially. We'll use the first service's data or look it up later.
+            // Actually, we can just create the package object.
+
+            Object.entries(grouped).forEach(([planId, items]) => {
+                // Try to find plan name from items or catalog (mapped later if needed)
+                // For now, use a placeholder or derived name.
+                // In a perfect world, we'd look up planId in 'packages' state, but it might not be loaded yet.
+                // We will handle "enrichment" when packages load or just use what we have.
+
+                // Calculate total price of the *instance*
+                const totalInstancePrice = items.reduce((sum, i) => sum + (Number(i.unit_price || i.price) * (i.quantity || 1)), 0);
+
+                // Create the "Package" Item
+                newBudgetItems.push({
+                    type: 'package',
+                    id: `pkg-inst-${planId}`, // Virtual ID for the group
+                    origin_plan_id: planId,
+                    name: "Plan Agrupado", // Will try to update this when packages load
+                    price: totalInstancePrice, // Total price of the group
+                    items: items.map(i => ({
+                        // Standardize inner items
+                        id: i.id, // Keep instance ID
+                        catalog_item_id: i.catalog_item_id,
+                        name: i.name,
+                        price: Number(i.unit_price || i.price),
+                        quantity: Number(i.quantity || 1),
+                        icon: i.icon
+                    })),
+                    quantity: 1 // Packages themselves are usually qty 1
                 });
             });
 
@@ -93,6 +141,24 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
 
                     setCatalog(catalogData);
                     setPackages(packagesData);
+
+                    // ENRICHMENT: Update names of grouped packages
+                    setBudgetItems(currentItems => {
+                        return currentItems.map(item => {
+                            if (item.type === 'package' && item.name === "Plan Agrupado") {
+                                const matchedPkg = packagesData.find(p => p.id === item.origin_plan_id);
+                                if (matchedPkg) {
+                                    return {
+                                        ...item,
+                                        name: matchedPkg.name,
+                                        // Optional: Update price if we want to sync with current catalog, 
+                                        // but for existing services we usually keep the instance price.
+                                    };
+                                }
+                            }
+                            return item;
+                        });
+                    });
 
                 } catch (err) {
                     console.error("Error loading catalog/combos", err);
@@ -149,36 +215,45 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
     };
 
     const handleAddPackage = (pkg) => {
-        // Expand Items from Catalog
-        const rawItems = (pkg.items || []).map(pi => {
+        // 1. Calculate Price (Same logic as render)
+        let finalPrice = 0;
+        if (pkg.price && !isNaN(Number(pkg.price)) && Number(pkg.price) > 0) {
+            finalPrice = Number(pkg.price);
+        } else {
+            // Fallback calculation
+            finalPrice = (pkg.items || []).reduce((sum, item) => {
+                const catItem = catalog.find(c => c.id === item.catalog_item_id);
+                return sum + ((catItem?.default_price || 0) * (item.quantity || 1));
+            }, 0);
+        }
+
+        // 2. Prepare Internal Items (Read-Only Snapshot)
+        const packageItems = (pkg.items || []).map(pi => {
             const catItem = catalog.find(c => c.id === pi.catalog_item_id);
             if (!catItem) return null;
             return {
-                ...catItem,
-                quantity: pi.quantity || 1
+                catalog_item_id: pi.catalog_item_id, // Store ID
+                name: catItem.name,
+                price: Number(catItem.default_price),
+                quantity: pi.quantity || 1, // Defined in package
+                icon: inferIcon(catItem.name)
             };
         }).filter(Boolean);
 
-        if (rawItems.length === 0) return;
+        if (packageItems.length === 0) return;
 
-        // Add each item individually to the list
-        const newItems = [];
-        rawItems.forEach(item => {
-            for (let i = 0; i < item.quantity; i++) {
-                newItems.push({
-                    id: `temp-${Math.random()}`,
-                    catalog_item_id: item.id,
-                    name: item.name,
-                    price: Number(item.default_price),
-                    quantity: 1,
-                    type: 'single', // We treat them as single items for simplicity in Mirror mode
-                    icon: inferIcon(item.name),
-                    shouldCreateInCatalog: false
-                });
-            }
-        });
+        // 3. Add as SINGLE Atomic Block
+        const newPackageItem = {
+            id: `temp-pkg-${Math.random()}`,
+            type: 'package', // ATOMIC TYPE
+            origin_plan_id: pkg.id, // CRITICAL: The Link
+            name: pkg.name,
+            price: finalPrice,
+            quantity: 1,
+            items: packageItems // The content (Read-Only)
+        };
 
-        setBudgetItems(prev => [...prev, ...newItems]);
+        setBudgetItems(prev => [...prev, newPackageItem]);
     };
 
     const handleQuantityChange = (index, newQuantity) => {
@@ -229,7 +304,29 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
             }
 
             // STEP 2: Mapeo de IDs y Preparación del Payload
-            const finalPayload = budgetItems.map(item => {
+            const finalPayload = budgetItems.flatMap(item => {
+                // CASE A: Package (Atomic Block -> Explode to Items)
+                if (item.type === 'package') {
+                    return item.items.map(subItem => ({
+                        // Package Items are new (or re-created) so we generally don't send ID unless we tracked it.
+                        // Since we are "Read-Only" inside, we probably re-create them or lost the IDs in the grouping.
+                        // If we grouped existing items, we should have kept their IDs.
+                        // Improvment in Hydration needed? 
+                        // In hydration: `items` mapped from `grouped`. `grouped` has `s.id`.
+                        // Let's ensure hydration preserves `id` in `items`.
+
+                        id: (subItem.id && !subItem.id.toString().startsWith('temp-')) ? subItem.id : undefined,
+                        origin_plan_id: item.origin_plan_id, // CRITICAL: Link to Plan
+                        catalog_item_id: subItem.catalog_item_id,
+                        name: subItem.name,
+                        unit_price: subItem.price,
+                        quantity: (subItem.quantity || 1) * (item.quantity || 1),
+                        service_type: 'recurring',
+                        is_active: true
+                    }));
+                }
+
+                // CASE B: Single Item
                 let realCatalogId = item.catalog_item_id;
 
                 // If it was a custom item, get the new ID
@@ -238,18 +335,26 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                 }
 
                 if (!realCatalogId) {
-                    // Should not happen if logic is correct, but safety check
-                    console.warn("Item missing catalog_item_id", item);
-                    return null;
+                    // Critical: If it's an existing item (has ID), we might forgive missing catalog_item_id 
+                    // if the backend can handle it, but it's risky.
+                    // Ideally, hydration should have fixed it. 
+                    // We will allow existing items to pass to avoid data loss, but warn.
+                    if (item.id && !item.id.toString().startsWith('temp-')) {
+                        console.warn("Existing item missing catalog_item_id, sending anyway", item);
+                        // proceed with realCatalogId as undefined/null
+                    } else {
+                        console.warn("New Item missing catalog_item_id", item);
+                        return [];
+                    }
                 }
 
-                return {
+                return [{
                     // STRICT DOCS ADHERENCE: Include ID for existing items
                     id: (item.id && !item.id.toString().startsWith('temp-')) ? item.id : undefined,
+                    origin_plan_id: null, // Single items are NOT part of a plan by default.
 
-                    origin_plan_id: realCatalogId, // Corresponds to catalog/plan ID
                     name: item.name,
-                    unit_price: item.price, // Mapped from internal 'price'
+                    unit_price: item.price,
                     quantity: item.quantity || 1,
                     service_type: 'recurring',
                     is_active: true,
@@ -257,8 +362,8 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                     // Legacy/Backup fields
                     catalog_item_id: realCatalogId,
                     price: item.price
-                };
-            }).filter(Boolean);
+                }];
+            });
 
             console.log("Sync Payload:", finalPayload);
 
@@ -281,6 +386,69 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
     const totalBudget = budgetItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
 
     // --- RENDERING HELPERS ---
+
+    const renderPackageItem = (item, index) => {
+        const isExpanded = expandedBudgetPackages[item.id];
+        return (
+            <div key={item.id || index} className="mb-3 border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden group">
+                <div
+                    className="p-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
+                    onClick={() => toggleBudgetPackage(item.id)}
+                >
+                    {/* Left: Icon + Name */}
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full flex items-center justify-center transition-colors ${isExpanded ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500'}`}>
+                            <Package className="h-4 w-4" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-slate-800 text-sm">{item.name}</p>
+                            <p className="text-xs text-slate-500">{item.items.length} servicios incluidos</p>
+                        </div>
+                    </div>
+
+                    {/* Right: Price + Actions */}
+                    <div className="flex items-center gap-3">
+                        <span className="font-bold text-slate-900 text-sm">
+                            ${item.price.toLocaleString()}
+                        </span>
+
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleRemoveItem(index); }}
+                                className="h-8 w-8 flex items-center justify-center rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                                title="Eliminar Plan Completo"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </button>
+                            <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Expanded Content */}
+                {isExpanded && (
+                    <div className="bg-slate-50/50 border-t border-slate-100 p-2 space-y-1">
+                        {item.items.map((sub, idx) => {
+                            const SubIcon = ICON_MAP[inferIcon(sub.name)] || Zap;
+                            return (
+                                <div key={idx} className="flex justify-between items-center p-2 rounded hover:bg-white hover:shadow-sm transition-all text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <SubIcon className="h-3 w-3 text-slate-400" />
+                                        <span className="text-slate-700">{sub.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-mono">
+                                            x{sub.quantity}
+                                        </span>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const renderSingleItem = (item, index) => {
         const iconName = item.icon || inferIcon(item.name || '');
@@ -508,7 +676,9 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar mb-4">
                             {budgetItems.length > 0 ? (
                                 <div>
-                                    {budgetItems.map((item, index) => renderSingleItem(item, index))}
+                                    {budgetItems.map((item, index) =>
+                                        item.type === 'package' ? renderPackageItem(item, index) : renderSingleItem(item, index)
+                                    )}
                                 </div>
                             ) : (
                                 <div className="h-48 flex flex-col items-center justify-center text-slate-400 text-center p-8 border-2 border-dashed border-slate-100 rounded-xl">

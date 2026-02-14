@@ -4,7 +4,7 @@ import { ArrowLeft, Edit, FileText, User, Mail, Building, FileSpreadsheet, MapPi
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
-import { clientAPI, servicesAPI, invoiceAPI, catalogAPI } from "../../../services/apiClient";
+import { clientAPI, servicesAPI, invoiceAPI, catalogAPI, combosAPI } from "../../../services/apiClient";
 import { adaptClient, adaptClientForApi } from "../../../utils/adapters";
 import { DEFAULT_COLUMNS } from '../data/constants';
 import { Input } from "../../../components/ui/Input";
@@ -34,6 +34,7 @@ export default function ClientDetailPage() {
     const { id } = useParams();
     const [client, setClient] = useState(null);
     const [services, setServices] = useState([]);
+    const [packages, setPackages] = useState([]);
     const [invoices, setInvoices] = useState([]);
     const [statuses, setStatuses] = useState([]);
     const [isBudgetManagerOpen, setIsBudgetManagerOpen] = useState(false);
@@ -206,13 +207,19 @@ export default function ClientDetailPage() {
                         type: 'recurring', // Default
                         icon: s.icon || 'Wifi',
                         origin_combo_id: s.origin_combo_id, // Keep track of origin
+                        origin_plan_id: s.origin_plan_id, // Ensure this is preserved
                         _comboData: s._comboData // Pass through combo metadata
                     }));
                     setServices(adaptedServices);
 
-                    // 3. Load Invoices
-                    const invResponse = await invoiceAPI.getAll({ client_id: clientData.id });
+                    // 3. Load Invoices & Packages (Combos)
+                    const [invResponse, comboResponse] = await Promise.all([
+                        invoiceAPI.getAll({ client_id: clientData.id }),
+                        combosAPI.getAll()
+                    ]);
+
                     setInvoices(invResponse.data || []);
+                    setPackages(comboResponse.data || []);
                 }
 
                 // 4. Load Statuses (Columns) - For now mocked or specific API if exists
@@ -274,6 +281,7 @@ export default function ClientDetailPage() {
                 type: 'recurring',
                 icon: s.icon || 'Wifi',
                 origin_combo_id: s.origin_combo_id,
+                origin_plan_id: s.origin_plan_id,
                 _comboData: s._comboData
             }));
             setServices(adaptedServices);
@@ -499,22 +507,26 @@ export default function ClientDetailPage() {
         if (!comboToDelete) return;
 
         const promise = async () => {
-            // Find all services in this combo
-            const itemsToDelete = services.filter(s => s.origin_combo_id === comboToDelete.id);
+            // Find all services in this combo/plan
+            const itemsToDelete = services.filter(s =>
+                s.origin_combo_id === comboToDelete.id || s.origin_plan_id === comboToDelete.id
+            );
 
             // Delete sequentially
             for (const item of itemsToDelete) {
                 await servicesAPI.remove(item.id);
             }
 
-            // Update local state (remove all items with this origin_combo_id)
-            setServices(prev => prev.filter(s => s.origin_combo_id !== comboToDelete.id));
+            // Update local state (remove all items with this origin ID)
+            setServices(prev => prev.filter(s =>
+                s.origin_combo_id !== comboToDelete.id && s.origin_plan_id !== comboToDelete.id
+            ));
         };
 
         toast.promise(promise(), {
-            loading: 'Eliminando combo...',
-            success: 'Combo y servicios eliminados',
-            error: 'Error al eliminar combo'
+            loading: 'Eliminando plan...',
+            success: 'Plan eliminado correctamente',
+            error: 'Error al eliminar plan'
         });
         setComboToDelete(null);
     };
@@ -854,15 +866,22 @@ export default function ClientDetailPage() {
                                     const singles = [];
 
                                     services.forEach(s => {
-                                        if (s.origin_combo_id && s.origin_combo_id !== 'null') {
-                                            if (!groups[s.origin_combo_id]) {
-                                                groups[s.origin_combo_id] = {
-                                                    id: s.origin_combo_id,
-                                                    name: s._comboData?.name || 'Pack',
-                                                    items: []
+                                        // Check for ID from Plan or Legacy Combo
+                                        const groupId = s.origin_plan_id || s.origin_combo_id;
+
+                                        if (groupId && groupId !== 'null') {
+                                            if (!groups[groupId]) {
+                                                // Resolve Name: 1. From Packages State, 2. From embedded _comboData, 3. Fallback
+                                                const pkgMatch = packages.find(p => p.id === groupId);
+
+                                                groups[groupId] = {
+                                                    id: groupId,
+                                                    name: pkgMatch?.name || s._comboData?.name || 'Plan Agrupado',
+                                                    items: [],
+                                                    isPlan: !!s.origin_plan_id
                                                 };
                                             }
-                                            groups[s.origin_combo_id].items.push(s);
+                                            groups[groupId].items.push(s);
                                         } else {
                                             singles.push(s);
                                         }
@@ -871,7 +890,7 @@ export default function ClientDetailPage() {
                                     // Render Logic
                                     return (
                                         <>
-                                            {/* 1. Combos */}
+                                            {/* 1. Combos / Plans (Atomic Blocks) */}
                                             {Object.values(groups).map((group) => {
                                                 const groupTotal = group.items.reduce((sum, i) => sum + i.price, 0);
                                                 return (
@@ -886,15 +905,6 @@ export default function ClientDetailPage() {
                                                                 <span className="font-bold text-slate-700 text-sm">
                                                                     ${groupTotal.toLocaleString()}
                                                                 </span>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-6 w-6 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-opacity opacity-0 group-hover/card:opacity-100"
-                                                                    onClick={() => setComboToDelete({ id: group.id, name: group.name })}
-                                                                    title="Eliminar Combo completo"
-                                                                >
-                                                                    <Trash className="h-3.5 w-3.5" />
-                                                                </Button>
                                                             </div>
                                                         </div>
 
@@ -914,10 +924,11 @@ export default function ClientDetailPage() {
                                                                                     {service.name}
                                                                                     {qty > 1 && <span className="text-[10px] bg-slate-100 px-1 rounded">x{qty}</span>}
                                                                                 </span>
-                                                                                <span className="text-[10px] text-primary/70 uppercase tracking-wider font-bold">Incluido en Pack</span>
+                                                                                <span className="text-[10px] text-primary/70 uppercase tracking-wider font-bold">Incluido en Plan</span>
                                                                             </div>
                                                                         </div>
                                                                         <div className="flex items-center gap-3">
+                                                                            {/* Read Only Price */}
                                                                             <span className="text-sm font-medium text-slate-600">${service.price.toLocaleString()}</span>
                                                                         </div>
                                                                     </div>
@@ -930,13 +941,13 @@ export default function ClientDetailPage() {
 
                                             {/* 2. Singles */}
                                             {singles.length > 0 && (
-                                                <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
+                                                <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden bg-white">
                                                     {singles.map((service, index) => {
                                                         const IconComponent = ICON_MAP[service.icon] || Repeat;
                                                         const totalItemPrice = (service.price || 0) * (service.quantity || 1);
 
                                                         return (
-                                                            <div key={service.id || index} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group bg-white">
+                                                            <div key={service.id || index} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
                                                                 <div className="flex items-center gap-3">
                                                                     <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
                                                                         <IconComponent className="h-4 w-4" />
