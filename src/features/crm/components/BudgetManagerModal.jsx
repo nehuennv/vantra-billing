@@ -46,6 +46,16 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
     const [showCustomForm, setShowCustomForm] = useState(false);
     const [customItem, setCustomItem] = useState({ name: '', price: '', quantity: 1 });
 
+    // Accordion State for Packages
+    const [expandedPackages, setExpandedPackages] = useState({});
+
+    const togglePackage = (pkgId) => {
+        setExpandedPackages(prev => ({
+            ...prev,
+            [pkgId]: !prev[pkgId]
+        }));
+    };
+
     // Hydrate State on Open
     useEffect(() => {
         if (isOpen && client?.activeServices) {
@@ -411,27 +421,77 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                                     );
                                 })
                             ) : (
-                                availablePackages.map(pkg => (
-                                    <div key={pkg.id} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-primary/50 hover:shadow-sm transition-all flex justify-between items-center group">
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <Layers className="h-4 w-4 text-indigo-500" />
-                                                <p className="font-medium text-slate-800 text-sm">{pkg.name}</p>
+                                availablePackages.map(pkg => {
+                                    // Helper function to calculate price if not present
+                                    const getPackagePrice = (p) => {
+                                        if (p.price && !isNaN(Number(p.price)) && Number(p.price) > 0) return Number(p.price);
+                                        // Fallback calculation
+                                        return (p.items || []).reduce((sum, item) => {
+                                            const catItem = catalog.find(c => c.id === item.catalog_item_id);
+                                            return sum + ((catItem?.default_price || 0) * (item.quantity || 1));
+                                        }, 0);
+                                    };
+
+                                    const pkgPrice = getPackagePrice(pkg);
+                                    const isExpanded = expandedPackages[pkg.id];
+
+                                    return (
+                                        <div key={pkg.id} className={`bg-white rounded-lg border transition-all group overflow-hidden ${isExpanded ? 'border-primary/30 shadow-md ring-1 ring-primary/5' : 'border-slate-200 hover:border-primary/50 hover:shadow-sm'}`}>
+                                            <div className="p-3 flex justify-between items-center cursor-pointer" onClick={() => togglePackage(pkg.id)}>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-2 rounded-full flex items-center justify-center transition-colors ${isExpanded ? 'bg-primary/10 text-primary' : 'bg-slate-50 text-slate-400 group-hover:bg-primary/5 group-hover:text-primary'}`}>
+                                                            <Layers className="h-4 w-4" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium text-slate-800 text-sm">{pkg.name}</p>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <span className="text-xs font-bold text-slate-700">
+                                                                    ${pkgPrice.toLocaleString()}
+                                                                </span>
+                                                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                                                                    {(pkg.items?.length || 0)} servicios
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`p-1.5 rounded-md transition-all duration-200 ${isExpanded ? 'bg-slate-100 text-slate-600 rotate-180' : 'text-slate-400 hover:bg-slate-50'}`}>
+                                                        <ChevronRight className="h-4 w-4 rotate-90" />
+                                                    </div>
+                                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 bg-slate-50 text-slate-600 hover:bg-primary hover:text-white" onClick={(e) => { e.stopPropagation(); handleAddPackage(pkg); }}>
+                                                        <Plus className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2 mt-1.5">
-                                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
-                                                    ${Number(pkg.price).toLocaleString()}
-                                                </span>
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                                                    {(pkg.items?.length || 0)} ítems
-                                                </span>
-                                            </div>
+
+                                            {/* Accordion Content */}
+                                            {isExpanded && (
+                                                <div className="px-3 pb-3 animate-in slide-in-from-top-1 duration-200 fade-in">
+                                                    <div className="bg-slate-50/80 rounded-lg p-2 space-y-1 border border-slate-100">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">Contenido del Plan</p>
+                                                        {(pkg.items || []).map((item, idx) => {
+                                                            const catItem = catalog.find(c => c.id === item.catalog_item_id);
+                                                            const itemIcon = inferIcon(catItem?.name);
+                                                            const ItemIcon = ICON_MAP[itemIcon] || Zap;
+                                                            return (
+                                                                <div key={idx} className="flex justify-between items-center text-xs text-slate-700 p-2 rounded-md hover:bg-white hover:shadow-sm transition-all">
+                                                                    <span className="flex items-center gap-2">
+                                                                        <ItemIcon className="h-3 w-3 text-slate-400" />
+                                                                        {catItem?.name || 'Item desconocido'}
+                                                                    </span>
+                                                                    <span className="font-medium bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-500">x{item.quantity}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white" onClick={() => handleAddPackage(pkg)}>
-                                            <Plus className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>
