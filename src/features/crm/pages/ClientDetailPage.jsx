@@ -41,6 +41,10 @@ export default function ClientDetailPage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
+    // Loading States
+    const [isLoadingServices, setIsLoadingServices] = useState(true);
+    const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
+
     // New: State for viewing an existing invoice
     const [viewInvoice, setViewInvoice] = useState(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -168,58 +172,71 @@ export default function ClientDetailPage() {
 
                 if (clientData) {
                     // 2. Load Services (Instances)
-                    const svcResponse = await servicesAPI.getByClient(clientData.id);
+                    try {
+                        const svcResponse = await servicesAPI.getByClient(clientData.id);
 
-                    // Parse Services from V2 Response (Grouped + Individual)
-                    let rawServices = [];
-                    // ROBUST PARSING: Check for standard 'data' array first (V1/V2 Std)
-                    if (svcResponse && Array.isArray(svcResponse.data)) {
-                        rawServices = svcResponse.data;
-                    }
-                    // Fallback: Check if response itself is an array (Legacy/Simple)
-                    else if (Array.isArray(svcResponse)) {
-                        rawServices = svcResponse;
-                    }
-                    // Fallback: Check for 'grouped_services' object (Legacy Complicated)
-                    else if (svcResponse && typeof svcResponse === 'object') {
-                        // Extract from grouped_services (Combos)
-                        const fromGroups = (svcResponse.grouped_services || []).flatMap(g =>
-                            (g.items || []).map(item => ({
-                                ...item,
-                                _comboData: {
-                                    id: g.combo_id,
-                                    name: g.combo_name
-                                }
-                            }))
-                        );
-                        // Extract individual_services
-                        const individuals = svcResponse.individual_services || [];
-                        rawServices = [...fromGroups, ...individuals];
-                    }
+                        // Parse Services from V2 Response (Grouped + Individual)
+                        let rawServices = [];
+                        // ROBUST PARSING: Check for standard 'data' array first (V1/V2 Std)
+                        if (svcResponse && Array.isArray(svcResponse.data)) {
+                            rawServices = svcResponse.data;
+                        }
+                        // Fallback: Check if response itself is an array (Legacy/Simple)
+                        else if (Array.isArray(svcResponse)) {
+                            rawServices = svcResponse;
+                        }
+                        // Fallback: Check for 'grouped_services' object (Legacy Complicated)
+                        else if (svcResponse && typeof svcResponse === 'object') {
+                            // Extract from grouped_services (Combos)
+                            const fromGroups = (svcResponse.grouped_services || []).flatMap(g =>
+                                (g.items || []).map(item => ({
+                                    ...item,
+                                    _comboData: {
+                                        id: g.combo_id,
+                                        name: g.combo_name
+                                    }
+                                }))
+                            );
+                            // Extract individual_services
+                            const individuals = svcResponse.individual_services || [];
+                            rawServices = [...fromGroups, ...individuals];
+                        }
 
-                    // Adapt Service Instances
-                    const adaptedServices = rawServices.map(s => ({
-                        id: s.id,
-                        catalog_item_id: s.catalog_item_id || s.origin_plan_id, // Fix: Map from origin_plan_id if catalog_item_id is missing
-                        name: s.name,
-                        price: Number(s.unit_price || s.price), // V2 uses unit_price
-                        quantity: Number(s.quantity || 1), // Fix: Ensure quantity is mapped
-                        type: 'recurring', // Default
-                        icon: s.icon || 'Wifi',
-                        origin_combo_id: s.origin_combo_id, // Keep track of origin
-                        origin_plan_id: s.origin_plan_id, // Ensure this is preserved
-                        _comboData: s._comboData // Pass through combo metadata
-                    }));
-                    setServices(adaptedServices);
+                        // Adapt Service Instances
+                        const adaptedServices = rawServices.map(s => ({
+                            id: s.id,
+                            catalog_item_id: s.catalog_item_id || s.origin_plan_id, // Fix: Map from origin_plan_id if catalog_item_id is missing
+                            name: s.name,
+                            price: Number(s.unit_price || s.price), // V2 uses unit_price
+                            quantity: Number(s.quantity || 1), // Fix: Ensure quantity is mapped
+                            type: 'recurring', // Default
+                            icon: s.icon || 'Wifi',
+                            origin_combo_id: s.origin_combo_id, // Keep track of origin
+                            origin_plan_id: s.origin_plan_id, // Ensure this is preserved
+                            _comboData: s._comboData, // Pass through combo metadata
+                            display_code: s.display_code // Map display_code
+                        }));
+                        setServices(adaptedServices);
+                    } catch (err) {
+                        console.error("Error loading services", err);
+                    } finally {
+                        setIsLoadingServices(false);
+                    }
 
                     // 3. Load Invoices & Packages (Combos)
-                    const [invResponse, comboResponse] = await Promise.all([
-                        invoiceAPI.getAll({ client_id: clientData.id }),
-                        combosAPI.getAll()
-                    ]);
+                    try {
+                        const [invResponse, comboResponse] = await Promise.all([
+                            invoiceAPI.getAll({ client_id: clientData.id }),
+                            combosAPI.getAll()
+                        ]);
 
-                    setInvoices(invResponse.data || []);
-                    setPackages(comboResponse.data || []);
+                        setInvoices(invResponse.data || []);
+                        setPackages(comboResponse.data || []);
+                    } catch (err) {
+                        console.error("Error loading invoices/packages", err);
+                    } finally {
+                        setIsLoadingInvoices(false);
+                    }
                 }
 
                 // 4. Load Statuses (Columns) - For now mocked or specific API if exists
@@ -230,6 +247,8 @@ export default function ClientDetailPage() {
             } catch (error) {
                 console.error("Error loading client details", error);
                 toast.error("Error al cargar los datos del cliente");
+                setIsLoadingServices(false);
+                setIsLoadingInvoices(false);
             }
         };
 
@@ -282,7 +301,8 @@ export default function ClientDetailPage() {
                 icon: s.icon || 'Wifi',
                 origin_combo_id: s.origin_combo_id,
                 origin_plan_id: s.origin_plan_id,
-                _comboData: s._comboData
+                _comboData: s._comboData,
+                display_code: s.display_code
             }));
             setServices(adaptedServices);
             setIsBudgetManagerOpen(false);
@@ -859,7 +879,58 @@ export default function ClientDetailPage() {
                         </CardHeader>
 
                         <div className="bg-white p-4 space-y-4">
-                            {services.length > 0 ? (
+                            {isLoadingServices ? (
+                                <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                                    {/* Skeleton for Plan Group */}
+                                    <div className="rounded-xl border border-slate-100 bg-white p-4 space-y-3">
+                                        <div className="flex justify-between items-center border-b border-slate-50 pb-2">
+                                            <div className="flex items-center gap-2">
+                                                <Skeleton className="h-4 w-4 rounded" />
+                                                <Skeleton className="h-4 w-32" />
+                                            </div>
+                                            <Skeleton className="h-4 w-16" />
+                                        </div>
+                                        <div className="space-y-3 pl-2">
+                                            <div className="flex justify-between">
+                                                <div className="flex gap-2">
+                                                    <Skeleton className="h-8 w-8 rounded-full" />
+                                                    <div className="space-y-1">
+                                                        <Skeleton className="h-3 w-40" />
+                                                        <Skeleton className="h-2 w-20" />
+                                                    </div>
+                                                </div>
+                                                <Skeleton className="h-4 w-12" />
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <div className="flex gap-2">
+                                                    <Skeleton className="h-8 w-8 rounded-full" />
+                                                    <div className="space-y-1">
+                                                        <Skeleton className="h-3 w-40" />
+                                                        <Skeleton className="h-2 w-20" />
+                                                    </div>
+                                                </div>
+                                                <Skeleton className="h-4 w-12" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Skeleton for Single Items */}
+                                    <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden bg-white">
+                                        {[1, 2].map((_, i) => (
+                                            <div key={i} className="p-4 flex justify-between items-center">
+                                                <div className="flex gap-3">
+                                                    <Skeleton className="h-8 w-8 rounded-full" />
+                                                    <div className="space-y-1">
+                                                        <Skeleton className="h-4 w-48" />
+                                                        <Skeleton className="h-3 w-24" />
+                                                    </div>
+                                                </div>
+                                                <Skeleton className="h-5 w-20" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : services.length > 0 ? (
                                 (() => {
                                     // Group Items Logic
                                     const groups = {};
@@ -889,7 +960,7 @@ export default function ClientDetailPage() {
 
                                     // Render Logic
                                     return (
-                                        <>
+                                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                                             {/* 1. Combos / Plans (Atomic Blocks) */}
                                             {Object.values(groups).map((group) => {
                                                 const groupTotal = group.items.reduce((sum, i) => sum + i.price, 0);
@@ -920,10 +991,18 @@ export default function ClientDetailPage() {
                                                                         <div className="flex items-center gap-3">
                                                                             <IconComponent className="h-4 w-4 text-slate-400" />
                                                                             <div className="flex flex-col">
-                                                                                <span className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                                                                                <div className="text-sm font-medium text-slate-700 flex items-center gap-2">
                                                                                     {service.name}
+                                                                                    {service.display_code && (
+                                                                                        <Badge
+                                                                                            variant="outline"
+                                                                                            className="ml-2 font-mono text-[10px] text-muted-foreground border-border bg-muted/50 px-1.5 h-5"
+                                                                                        >
+                                                                                            {service.display_code}
+                                                                                        </Badge>
+                                                                                    )}
                                                                                     {qty > 1 && <span className="text-[10px] bg-slate-100 px-1 rounded">x{qty}</span>}
-                                                                                </span>
+                                                                                </div>
                                                                                 <span className="text-[10px] text-primary/70 uppercase tracking-wider font-bold">Incluido en Plan</span>
                                                                             </div>
                                                                         </div>
@@ -953,14 +1032,22 @@ export default function ClientDetailPage() {
                                                                         <IconComponent className="h-4 w-4" />
                                                                     </div>
                                                                     <div>
-                                                                        <p className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                                                                        <div className="font-semibold text-slate-900 text-sm flex items-center gap-2">
                                                                             {service.name}
+                                                                            {service.display_code && (
+                                                                                <Badge
+                                                                                    variant="outline"
+                                                                                    className="ml-2 font-mono text-[10px] text-muted-foreground border-border bg-muted/50 px-1.5 h-5"
+                                                                                >
+                                                                                    {service.display_code}
+                                                                                </Badge>
+                                                                            )}
                                                                             {(service.quantity > 1) && (
                                                                                 <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
                                                                                     x{service.quantity}
                                                                                 </span>
                                                                             )}
-                                                                        </p>
+                                                                        </div>
                                                                         <p className="text-xs text-slate-500">
                                                                             {service.type === 'recurring' ? 'Recurrente Mensual' : 'Pago Único'}
                                                                         </p>
@@ -981,11 +1068,11 @@ export default function ClientDetailPage() {
                                                     })}
                                                 </div>
                                             )}
-                                        </>
+                                        </div>
                                     );
                                 })()
                             ) : (
-                                <div className="p-8 text-center text-slate-500 text-sm">
+                                <div className="p-8 text-center text-slate-500 text-sm animate-in fade-in">
                                     No hay servicios activos.
                                     <button onClick={() => setIsBudgetManagerOpen(true)} className="text-primary hover:underline ml-1">
                                         Agregar uno
@@ -996,8 +1083,8 @@ export default function ClientDetailPage() {
 
                         {/* Footer Total */}
                         {
-                            services.length > 0 && (
-                                <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-between items-center">
+                            !isLoadingServices && services.length > 0 && (
+                                <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-between items-center animate-in slide-in-from-bottom-2 duration-700">
                                     <span className="text-sm font-bold text-slate-600 uppercase">Total Mensual</span>
                                     <span className="text-xl font-bold text-primary tracking-tight">
                                         ${recurringTotal.toLocaleString()}
@@ -1015,8 +1102,20 @@ export default function ClientDetailPage() {
                         </div>
 
                         <Card className="shadow-none border border-slate-200/60 bg-white/50 overflow-hidden">
-                            {invoices.length > 0 ? (
-                                <div className="overflow-x-auto w-full">
+                            {isLoadingInvoices ? (
+                                <div className="p-4 space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                                    {[1, 2, 3].map(i => (
+                                        <div key={i} className="flex items-center justify-between">
+                                            <Skeleton className="h-4 w-24" />
+                                            <Skeleton className="h-4 w-32" />
+                                            <Skeleton className="h-4 w-48 hidden sm:block" />
+                                            <Skeleton className="h-6 w-16 rounded-full" />
+                                            <Skeleton className="h-4 w-20" />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : invoices.length > 0 ? (
+                                <div className="overflow-x-auto w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
                                     <table className="w-full text-sm text-left whitespace-nowrap">
                                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
                                             <tr>

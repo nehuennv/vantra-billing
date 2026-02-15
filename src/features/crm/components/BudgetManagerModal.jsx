@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus, Trash2, Search, CheckCircle2, LayoutGrid, Package, Layers, ChevronRight, AlertCircle, Wifi, Zap, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../components/ui/Dialog';
@@ -390,7 +391,15 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
     const renderPackageItem = (item, index) => {
         const isExpanded = expandedBudgetPackages[item.id];
         return (
-            <div key={item.id || index} className="mb-3 border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden group">
+            <motion.div
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                key={item.id || index}
+                className="mb-3 border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden group"
+            >
                 <div
                     className="p-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
                     onClick={() => toggleBudgetPackage(item.id)}
@@ -426,27 +435,34 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                 </div>
 
                 {/* Expanded Content */}
-                {isExpanded && (
-                    <div className="bg-slate-50/50 border-t border-slate-100 p-2 space-y-1">
-                        {item.items.map((sub, idx) => {
-                            const SubIcon = ICON_MAP[inferIcon(sub.name)] || Zap;
-                            return (
-                                <div key={idx} className="flex justify-between items-center p-2 rounded hover:bg-white hover:shadow-sm transition-all text-xs">
-                                    <div className="flex items-center gap-2">
-                                        <SubIcon className="h-3 w-3 text-slate-400" />
-                                        <span className="text-slate-700">{sub.name}</span>
+                <AnimatePresence>
+                    {isExpanded && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="bg-slate-50/50 border-t border-slate-100 p-2 space-y-1 overflow-hidden"
+                        >
+                            {item.items.map((sub, idx) => {
+                                const SubIcon = ICON_MAP[inferIcon(sub.name)] || Zap;
+                                return (
+                                    <div key={idx} className="flex justify-between items-center p-2 rounded hover:bg-white hover:shadow-sm transition-all text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <SubIcon className="h-3 w-3 text-slate-400" />
+                                            <span className="text-slate-700">{sub.name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-mono">
+                                                x{sub.quantity}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-mono">
-                                            x{sub.quantity}
-                                        </span>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-            </div>
+                                )
+                            })}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
         );
     };
 
@@ -456,7 +472,15 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
         const totalItemPrice = (item.price || 0) * (item.quantity || 1);
 
         return (
-            <div key={item.id || index} className={`flex justify-between items-center p-3 rounded-lg border ${item.shouldCreateInCatalog ? 'border-primary/30 bg-primary/5' : 'border-slate-100 bg-white'} group hover:border-slate-300 transition-all mb-2 shadow-sm`}>
+            <motion.div
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                key={item.id || index}
+                className={`flex justify-between items-center p-3 rounded-lg border ${item.shouldCreateInCatalog ? 'border-primary/30 bg-primary/5' : 'border-slate-100 bg-white'} group hover:border-slate-300 transition-all mb-2 shadow-sm`}
+            >
                 <div className="flex items-center gap-3 flex-1">
                     <div className={`h-9 w-9 rounded-full border flex items-center justify-center ${item.shouldCreateInCatalog ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
                         <Icon className="h-4 w-4" />
@@ -513,7 +537,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                         <Trash2 className="h-4 w-4" />
                     </button>
                 </div>
-            </div>
+            </motion.div>
         );
     };
 
@@ -534,33 +558,32 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                 <div className="flex-1 flex overflow-hidden">
                     {/* LEFT: Catalog */}
                     <div className="w-1/2 border-r border-slate-100 p-4 flex flex-col bg-slate-50/30">
-                        <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-bold text-slate-700">Agregar Items</h4>
-                            <div className="flex bg-slate-200/50 p-1 rounded-lg">
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder={activeTab === 'services' ? "Buscar producto..." : "Buscar plan..."}
+                                    className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="flex bg-slate-200/50 p-1 rounded-lg shrink-0">
                                 <button
                                     onClick={() => setActiveTab('services')}
-                                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'services' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'services' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     <LayoutGrid className="h-3 w-3" /> Catálogo
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('packages')}
-                                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'packages' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'packages' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     <Package className="h-3 w-3" /> Planes
                                 </button>
                             </div>
-                        </div>
-
-                        <div className="relative mb-4">
-                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder={activeTab === 'services' ? "Buscar producto..." : "Buscar plan..."}
-                                className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
                         </div>
 
                         <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
@@ -676,9 +699,11 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar mb-4">
                             {budgetItems.length > 0 ? (
                                 <div>
-                                    {budgetItems.map((item, index) =>
-                                        item.type === 'package' ? renderPackageItem(item, index) : renderSingleItem(item, index)
-                                    )}
+                                    <AnimatePresence mode="popLayout">
+                                        {budgetItems.map((item, index) =>
+                                            item.type === 'package' ? renderPackageItem(item, index) : renderSingleItem(item, index)
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             ) : (
                                 <div className="h-48 flex flex-col items-center justify-center text-slate-400 text-center p-8 border-2 border-dashed border-slate-100 rounded-xl">
@@ -690,44 +715,79 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
 
                         {/* CUSTOM ITEM FORM (Pinned to Bottom) */}
                         <div className="mt-auto border-t border-slate-100 pt-4">
-                            {!showCustomForm ? (
-                                <Button
-                                    variant="outline"
-                                    className="w-full border-dashed border-slate-300 text-slate-500 hover:text-primary hover:border-primary hover:bg-slate-50"
-                                    onClick={() => setShowCustomForm(true)}
-                                >
-                                    <Plus className="h-4 w-4 mr-2" /> Agregar Item Manual
-                                </Button>
-                            ) : (
-                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 animate-in slide-in-from-bottom-2 fade-in">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <p className="text-xs font-bold text-slate-500 uppercase">Nuevo Item Personalizado</p>
-                                        <button onClick={() => setShowCustomForm(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
-                                    </div>
-                                    <div className="flex gap-2 mb-2">
-                                        <input
-                                            className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary"
-                                            placeholder="Descripción (ej: Instalación Especial)"
-                                            value={customItem.name}
-                                            onChange={e => setCustomItem(prev => ({ ...prev, name: e.target.value }))}
-                                        />
-                                        <input
-                                            type="number"
-                                            className="w-24 px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary"
-                                            placeholder="Precio"
-                                            value={customItem.price}
-                                            onChange={e => setCustomItem(prev => ({ ...prev, price: e.target.value }))}
-                                        />
-                                    </div>
-                                    <Button
-                                        className="w-full bg-slate-800 text-white hover:bg-slate-700"
-                                        disabled={!customItem.name || !customItem.price}
-                                        onClick={handleAddCustomItem}
+                            <AnimatePresence mode="wait">
+                                {!showCustomForm ? (
+                                    <motion.div
+                                        key="button"
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: 10 }}
+                                        transition={{ duration: 0.2 }}
                                     >
-                                        Agregar al Listado
-                                    </Button>
-                                </div>
-                            )}
+                                        <Button
+                                            variant="outline"
+                                            className="w-full border-dashed border-slate-300 text-slate-500 hover:text-primary hover:border-primary hover:bg-slate-50"
+                                            onClick={() => setShowCustomForm(true)}
+                                        >
+                                            <Plus className="h-4 w-4 mr-2" /> Servicio Manual
+                                        </Button>
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        key="form"
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: 20 }}
+                                        transition={{ duration: 0.3, ease: "easeOut" }}
+                                        className="bg-slate-50 p-3 rounded-xl border border-slate-200"
+                                    >
+                                        <div className="flex justify-between items-center mb-2">
+                                            <p className="text-xs font-bold text-slate-500 uppercase">Nuevo Servicio Manual</p>
+                                            <button onClick={() => setShowCustomForm(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
+                                        </div>
+                                        <div className="flex gap-2 mb-2">
+                                            <div className="flex-[2]">
+                                                <input
+                                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary transition-all placeholder:text-slate-400"
+                                                    placeholder="Descripción (ej: Instalación)"
+                                                    value={customItem.name}
+                                                    onChange={e => setCustomItem(prev => ({ ...prev, name: e.target.value }))}
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full pl-6 pr-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary transition-all placeholder:text-slate-400"
+                                                        placeholder="Precio"
+                                                        value={customItem.price}
+                                                        onChange={e => setCustomItem(prev => ({ ...prev, price: e.target.value }))}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="w-20">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary transition-all text-center"
+                                                    placeholder="Cant."
+                                                    value={customItem.quantity || 1}
+                                                    onChange={e => setCustomItem(prev => ({ ...prev, quantity: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+                                        <Button
+                                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+                                            disabled={!customItem.name || !customItem.price}
+                                            onClick={handleAddCustomItem}
+                                        >
+                                            Agregar al Listado
+                                        </Button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                     </div>
                 </div>

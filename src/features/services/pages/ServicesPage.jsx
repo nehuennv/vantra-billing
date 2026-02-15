@@ -10,6 +10,8 @@ import { CreateServiceModal } from "../../../components/modals/CreateServiceModa
 import { EditServiceInstanceModal } from "../components/EditServiceInstanceModal";
 import { CreatePackageModal } from "../components/CreatePackageModal";
 import { ConfirmDeleteModal } from "../../../components/modals/ConfirmDeleteModal";
+import { CatalogItemCard } from "../components/CatalogItemCard";
+import { ComboItemCard } from "../components/ComboItemCard";
 
 // API
 import { catalogAPI, combosAPI, servicesAPI } from "../../../services/apiClient";
@@ -321,103 +323,9 @@ export default function ServicesPage() {
 
     // ADDED: Render Helper for Combo Card Edit Button
 
-    const renderComboCard = (combo) => {
-        // Calculate effective price: Use override if > 0, else sum items
-        const effectivePrice = combo.price > 0
-            ? combo.price
-            : combo.items?.reduce((sum, it) => {
-                const catItem = catalogItems.find(c => c.id === it.catalog_item_id);
-                return sum + ((catItem?.price || 0) * (it.quantity || 1));
-            }, 0);
+    // --- RENDER HELPERS (Now using new components) ---
+    // The previous renderComboCard and renderCatalogCard functions are replaced by the components.
 
-        return (
-            <Card key={combo.id} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
-                <CardHeader className="pb-3 pt-5 flex flex-row items-start justify-between space-y-0">
-                    <div className="p-2.5 rounded-xl bg-slate-50 text-slate-600 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                        <Package className="h-6 w-6" />
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <h3 className="font-heading font-bold text-lg text-slate-900 mb-1 group-hover:text-primary transition-colors">{combo.name}</h3>
-                    <p className="text-sm text-slate-500 mb-4">
-                        Incluye {combo.items?.length || 0} ítems
-                    </p>
-
-                    {/* List Preview */}
-                    <div className="space-y-1 mb-4">
-                        {combo.items?.slice(0, 3).map((it, idx) => {
-                            const catalogItem = catalogItems.find(c => c.id === it.catalog_item_id);
-                            return (
-                                <div key={idx} className="flex items-center gap-2 text-xs text-slate-600">
-                                    <div className="w-1 h-1 rounded-full bg-primary/60" />
-                                    <span>{it.quantity}x {catalogItem?.name || 'Ítem desconocido'}</span>
-                                </div>
-                            );
-                        })}
-                        {(combo.items?.length || 0) > 3 && <p className="text-xs text-slate-400 pl-3">...</p>}
-                    </div>
-
-                    <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
-                        <div>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Precio Plan</p>
-                            <div className="flex items-baseline gap-1">
-                                <p className="text-xl font-bold text-slate-900 font-heading">${effectivePrice.toLocaleString()}</p>
-                            </div>
-                        </div>
-                        <div className="flex gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => { setItemToEdit(combo); setIsComboModalOpen(true); }} className="h-8 w-8 p-0 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg">
-                                <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(combo, 'combo')} className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg">
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    };
-
-    // ...
-
-    const renderCatalogCard = (item) => {
-        const IconComponent = ICON_MAP[item.icon] || Zap;
-        return (
-            <Card key={item.id} className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-slate-200 overflow-hidden">
-                <CardHeader className="pb-3 pt-5 flex flex-row items-start justify-between space-y-0">
-                    <div className="p-2.5 rounded-xl bg-slate-50 text-slate-600 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                        <IconComponent className="h-6 w-6" />
-                    </div>
-                    {item.sku && (
-                        <Badge variant="outline" className="text-xs bg-slate-50 text-slate-500 font-mono tracking-wider">
-                            {item.sku}
-                        </Badge>
-                    )}
-                </CardHeader>
-                <CardContent>
-                    <h3 className="font-heading font-bold text-lg text-slate-900 mb-1 group-hover:text-primary transition-colors">{item.name}</h3>
-                    <p className="text-sm text-slate-500 mb-4 h-10 line-clamp-2 leading-relaxed">{item.description}</p>
-
-                    <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
-                        <div>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Precio de Lista</p>
-                            <div className="flex items-baseline gap-1">
-                                <p className="text-xl font-bold text-slate-900 font-heading">${item.price?.toLocaleString()}</p>
-                            </div>
-                        </div>
-                        <div className="flex gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => { setItemToEdit(item); setIsServiceModalOpen(true); }} className="h-8 w-8 p-0 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg">
-                                <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(item, 'catalog')} className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg">
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    };
     const filteredCatalog = catalogItems.filter(s => {
         if (s.isActive === false) return false; // Hide archived/deleted items
         if (searchTerm && !s.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
@@ -476,17 +384,19 @@ export default function ServicesPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, ease: "easeOut" }}
                 >
-                    {/* Header */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                                Administrador de Catálogo
-                            </h1>
-                            <p className="text-slate-500 mt-1">
-                                {viewMode === 'catalog' ? 'Define tus productos y precios base.' : 'Crea planes de productos.'}
-                            </p>
+                    {/* Header Unified */}
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex flex-col">
+                            <h2 className="text-xl font-bold text-slate-900">
+                                {viewMode === 'catalog' ? 'Catálogo de Productos' : 'Planes y Paquetes'}
+                            </h2>
+                            <span className="text-sm text-slate-500">
+                                {viewMode === 'catalog' ? `${filteredCatalog.length} Ítems disponibles` : `${filteredCombos.length} Planes configurados`}
+                            </span>
                         </div>
-                        <div className="flex gap-3">
+
+                        <div className="flex gap-4 items-center">
+                            {/* Switcher */}
                             <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
                                 {['catalog', 'combos'].map((mode) => (
                                     <button
@@ -508,13 +418,33 @@ export default function ServicesPage() {
                                     </button>
                                 ))}
                             </div>
+
+                            {/* NEW Button */}
                             <Button
                                 onClick={() => viewMode === 'catalog' ? setIsServiceModalOpen(true) : setIsComboModalOpen(true)}
-                                className={`gap-2 text-white shadow-lg active:scale-95 transition-all w-[200px] justify-center bg-primary hover:bg-primary/90 shadow-primary/20`}
+                                size="sm"
+                                className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-sm h-9"
                             >
-                                <Plus className="h-4 w-4" /> {viewMode === 'catalog' ? 'Nuevo Ítem' : 'Nuevo Plan'}
+                                <Plus className="h-4 w-4" /> Crear
                             </Button>
                         </div>
+                    </div>
+
+                    {/* Search Bar - UNIFIED STYLE */}
+                    <div className="flex justify-between items-center mb-6 bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
+                        <div className="relative w-full max-w-md">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder={viewMode === 'catalog' ? "Buscar productos en catálogo..." : "Buscar planes y combos..."}
+                                className="w-full pl-10 pr-4 py-2 bg-transparent text-sm outline-none placeholder:text-slate-400"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="text-slate-500 hover:text-slate-800">
+                            {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 mr-2" /> : <ArrowDown className="h-4 w-4 mr-2" />} Orden
+                        </Button>
                     </div>
 
                     {/* Modals */}
@@ -524,16 +454,13 @@ export default function ServicesPage() {
                         onConfirm={handleSaveCatalogItem}
                         initialData={itemToEdit}
                     />
-                    {/* We will refactor CreatePackageModal to be CreateComboModal */}
                     <CreatePackageModal
                         isOpen={isComboModalOpen}
                         onClose={() => { setIsComboModalOpen(false); setItemToEdit(null); }}
                         onConfirm={handleSaveCombo}
-                        // We pass catalog items so the modal can show the checklist
                         catalogItems={catalogItems}
                         initialData={itemToEdit}
                     />
-
                     <ConfirmDeleteModal
                         isOpen={isDeleteModalOpen}
                         onClose={() => setIsDeleteModalOpen(false)}
@@ -542,34 +469,35 @@ export default function ServicesPage() {
                         entityType={itemToDelete?.type === 'catalog' ? 'Ítem' : 'Plan'}
                     />
 
-                    {/* Filters */}
-                    <Card className="border-none shadow-sm bg-white/80 backdrop-blur border border-slate-200/50 mt-6">
-                        <CardContent className="p-4 flex flex-col lg:flex-row gap-4 justify-between items-center">
-                            <div className="relative w-full lg:w-1/3">
-                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                                <input type="text" placeholder={viewMode === 'catalog' ? "Buscar productos..." : "Buscar planes..."} className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                            </div>
-                            <div className="flex gap-3 items-center">
-                                <Button variant="ghost" size="sm" onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="h-9 px-3 text-slate-500 hover:text-slate-800 bg-slate-50 border border-slate-200">
-                                    {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 mr-2" /> : <ArrowDown className="h-4 w-4 mr-2" />} Orden
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
 
-                    {/* Content */}
+                    {/* Content Grid */}
                     {isLoading ? (
-                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-6">
-                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 w-full rounded-xl" />)}
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 w-full rounded-2xl" />)}
                         </div>
                     ) : (
-                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-6">
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                             {viewMode === 'catalog' ? (
-                                filteredCatalog.length > 0 ? filteredCatalog.map(item => renderCatalogCard(item)) : (
+                                filteredCatalog.length > 0 ? filteredCatalog.map(item => (
+                                    <CatalogItemCard
+                                        key={item.id}
+                                        item={item}
+                                        onEdit={(i) => { setItemToEdit(i); setIsServiceModalOpen(true); }}
+                                        onDelete={(i) => handleDeleteClick(i, 'catalog')}
+                                    />
+                                )) : (
                                     <div className="col-span-full"><EmptyState icon={PackageOpen} title="Catálogo Vacío" description="Define los productos o servicios base." actionLabel="Crear Primero" onAction={() => setIsServiceModalOpen(true)} /></div>
                                 )
                             ) : (
-                                filteredCombos.length > 0 ? filteredCombos.map(combo => renderComboCard(combo)) : (
+                                filteredCombos.length > 0 ? filteredCombos.map(combo => (
+                                    <ComboItemCard
+                                        key={combo.id}
+                                        combo={combo}
+                                        catalogItems={catalogItems}
+                                        onEdit={(c) => { setItemToEdit(c); setIsComboModalOpen(true); }}
+                                        onDelete={(c) => handleDeleteClick(c, 'combo')}
+                                    />
+                                )) : (
                                     <div className="col-span-full"><EmptyState icon={Package} title="Sin Planes" description="Agrupa productos en paquetes atractivos." actionLabel="Crear Plan" onAction={() => setIsComboModalOpen(true)} /></div>
                                 )
                             )}
@@ -581,8 +509,8 @@ export default function ServicesPage() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.3 }}
-                    className="mt-6"
                 >
+                    {/* Header Standardized */}
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex flex-col">
                             <h2 className="text-xl font-bold text-slate-900">Suscripciones Activas</h2>
@@ -590,22 +518,31 @@ export default function ServicesPage() {
                                 {filteredSubscriptions.length} Servicios detectados
                             </span>
                         </div>
-                        {/* Search Bar for Subscriptions */}
+
+                        {/* Search Bar - Matching Style roughly, but kept compact as per initial design or new standard? 
+                             Let's match the new standard but kept to the right side if preferred, or full width bar?
+                             The request was to standardize. Let's make it look like the catalog one.
+                         */}
                         <div className="relative w-full max-w-xs">
-                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Buscar por cliente, servicio..."
-                                className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm outline-none shadow-sm transition-all"
-                                value={subscriptionSearchTerm}
-                                onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
-                            />
+                            {/* Keep the floating style for now as it's cleaner for just search, or wrap in white?
+                                 User said "formato de buscadores" (plural). Let's wrap it to match.
+                             */}
+                            <div className="flex items-center bg-white p-1.5 rounded-xl border border-slate-100 shadow-sm">
+                                <Search className="ml-2 h-4 w-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar cliente/servicio..."
+                                    className="w-full pl-2 pr-4 py-1.5 bg-transparent text-sm outline-none placeholder:text-slate-400"
+                                    value={subscriptionSearchTerm}
+                                    onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
+                                />
+                            </div>
                         </div>
                     </div>
 
                     {(isSubscriptionsLoading || loadingClients) ? (
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                            {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-48 w-full rounded-xl" />)}
+                            {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-48 w-full rounded-2xl" />)}
                         </div>
                     ) : filteredSubscriptions.length > 0 ? (
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
