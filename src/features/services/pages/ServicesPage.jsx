@@ -7,12 +7,16 @@ import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Plus, Zap, Repeat, Trash2, Edit, Search, Package, Wifi, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield, LayoutGrid, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, PackageOpen, Download, Upload } from "lucide-react";
 import { CreateServiceModal } from "../../../components/modals/CreateServiceModal";
+import { EditServiceInstanceModal } from "../components/EditServiceInstanceModal";
 import { CreatePackageModal } from "../components/CreatePackageModal";
 import { ConfirmDeleteModal } from "../../../components/modals/ConfirmDeleteModal";
 
 // API
-import { catalogAPI, combosAPI } from "../../../services/apiClient";
+import { catalogAPI, combosAPI, servicesAPI } from "../../../services/apiClient";
+import { clientConfig } from "../../../config/client";
 import { useToast } from '../../../hooks/useToast';
+import { useClientLookup } from '../../../hooks/useClientLookup';
+import { ServiceInstanceCard } from '../components/ServiceInstanceCard';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { Skeleton } from '../../../components/ui/Skeleton';
 
@@ -80,6 +84,9 @@ export default function ServicesPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const viewMode = searchParams.get('view') || 'catalog';
 
+    // Main Tab State: 'catalog' | 'subscriptions'
+    const [activeTab, setActiveTab] = useState('catalog');
+
     const setViewMode = (mode) => {
         setSearchParams(prev => {
             prev.set('view', mode);
@@ -101,10 +108,43 @@ export default function ServicesPage() {
     const [itemToEdit, setItemToEdit] = useState(null);
     const [itemToDelete, setItemToDelete] = useState(null); // { id, type: 'catalog'|'combo', name }
 
+    // Subscriptions Edit State
+    const [isEditSubscriptionModalOpen, setIsEditSubscriptionModalOpen] = useState(false);
+    const [subscriptionToEdit, setSubscriptionToEdit] = useState(null);
+
+    // Data State
     // Data State
     const [catalogItems, setCatalogItems] = useState([]);
     const [combos, setCombos] = useState([]);
+
+    // Subscriptions Data
+    const [subscriptions, setSubscriptions] = useState([]);
+    const [subscriptionSearchTerm, setSubscriptionSearchTerm] = useState("");
     const [isLoading, setIsLoading] = useState(true);
+    const [isSubscriptionsLoading, setIsSubscriptionsLoading] = useState(false);
+
+    // Hooks
+    const { getClientName, loading: loadingClients } = useClientLookup();
+
+    // Fetch Subscriptions (Lazy load when tab is active)
+    useEffect(() => {
+        if (activeTab === 'subscriptions') {
+            const fetchSubscriptions = async () => {
+                setIsSubscriptionsLoading(true);
+                try {
+                    const response = await servicesAPI.getAll();
+                    const list = Array.isArray(response) ? response : (response.data || []);
+                    setSubscriptions(list);
+                } catch (error) {
+                    console.error("Error fetching subscriptions", error);
+                    toast.error("Error al cargar suscripciones.");
+                } finally {
+                    setIsSubscriptionsLoading(false);
+                }
+            };
+            fetchSubscriptions();
+        }
+    }, [activeTab]);
 
     const refreshData = async () => {
         setIsLoading(true);
@@ -221,12 +261,61 @@ export default function ServicesPage() {
 
         toast.promise(promise(), {
             loading: 'Eliminando...',
-            success: 'Elemento eliminado',
+            success: 'Eliminado correctamente',
             error: 'Error al eliminar'
         });
         setIsDeleteModalOpen(false);
         setItemToDelete(null);
     };
+
+    // --- Subscriptions Handlers ---
+
+    const handleEditSubscription = (service) => {
+        setSubscriptionToEdit(service);
+        setIsEditSubscriptionModalOpen(true);
+    };
+
+    const handleUpdateSubscription = async (updatedService) => {
+        // updatedService has the updated fields. We call servicesAPI.update(id, payload)
+        // Payload should only contain modifiable fields
+        const payload = {
+            name: updatedService.name,
+            unit_price: updatedService.unit_price,
+            quantity: updatedService.quantity,
+            description: updatedService.description
+        };
+
+        const promise = async () => {
+            await servicesAPI.update(updatedService.id, payload);
+            // Refresh logic: We could just update local state or refetch. 
+            // Refetch is safer to ensure sync.
+            const response = await servicesAPI.getAll();
+            const list = Array.isArray(response) ? response : (response.data || []);
+            setSubscriptions(list);
+        };
+
+        toast.promise(promise(), {
+            loading: 'Actualizando servicio...',
+            success: 'Servicio actualizado',
+            error: 'Error al actualizar servicio'
+        });
+        setIsEditSubscriptionModalOpen(false);
+        setSubscriptionToEdit(null);
+    };
+
+
+
+    // Filter Subscriptions
+    const filteredSubscriptions = subscriptions.filter(sub => {
+        const clientName = getClientName(sub.client_id) || '';
+        const searchLower = subscriptionSearchTerm.toLowerCase();
+        return (
+            sub.name.toLowerCase().includes(searchLower) ||
+            clientName.toLowerCase().includes(searchLower) ||
+            (sub.display_code && sub.display_code.toLowerCase().includes(searchLower))
+        );
+    });
+
 
     // ...
 
@@ -343,104 +432,213 @@ export default function ServicesPage() {
 
     return (
         <PageTransition className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                        Administrador de Catálogo
-                    </h1>
-                    <p className="text-slate-500 mt-1">
-                        {viewMode === 'catalog' ? 'Define tus productos y precios base.' : 'Crea planes de productos.'}
-                    </p>
-                </div>
-                <div className="flex gap-3">
-                    <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
-                        {['catalog', 'combos'].map((mode) => (
-                            <button
-                                key={mode}
-                                onClick={() => setViewMode(mode)}
-                                className={`relative px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-2 rounded-md ${viewMode === mode ? 'text-primary' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                {viewMode === mode && (
-                                    <motion.div
-                                        layoutId="services-view-switch"
-                                        className="absolute inset-0 bg-white rounded-md shadow-sm border border-slate-200/50"
-                                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                                    />
-                                )}
-                                <span className="relative z-10 flex items-center gap-2">
-                                    {mode === 'catalog' ? <LayoutGrid className="h-4 w-4" /> : <Package className="h-4 w-4" />}
-                                    {mode === 'catalog' ? 'Productos' : 'Planes'}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                    <Button
-                        onClick={() => viewMode === 'catalog' ? setIsServiceModalOpen(true) : setIsComboModalOpen(true)}
-                        className={`gap-2 text-white shadow-lg active:scale-95 transition-all w-[200px] justify-center bg-primary hover:bg-primary/90 shadow-primary/20`}
-                    >
-                        <Plus className="h-4 w-4" /> {viewMode === 'catalog' ? 'Nuevo Ítem' : 'Nuevo Plan'}
-                    </Button>
-                </div>
+            {/* Top Level Tabs - Navigation Style */}
+            <div className="flex items-center space-x-8 border-b border-slate-200 mb-8">
+                <button
+                    onClick={() => setActiveTab('catalog')}
+                    className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'catalog'
+                        ? 'text-slate-900'
+                        : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                >
+                    Catálogo
+                    {activeTab === 'catalog' && (
+                        <motion.div
+                            layoutId="activeTabUnderline"
+                            className="absolute bottom-0 left-0 right-0 h-[2px]"
+                            style={{ backgroundColor: clientConfig.colors.primary }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        />
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTab('subscriptions')}
+                    className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'subscriptions'
+                        ? 'text-slate-900'
+                        : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                >
+                    Suscripciones
+                    {activeTab === 'subscriptions' && (
+                        <motion.div
+                            layoutId="activeTabUnderline"
+                            className="absolute bottom-0 left-0 right-0 h-[2px]"
+                            style={{ backgroundColor: clientConfig.colors.primary }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        />
+                    )}
+                </button>
             </div>
 
-            {/* Modals */}
-            <CreateServiceModal
-                isOpen={isServiceModalOpen}
-                onClose={() => { setIsServiceModalOpen(false); setItemToEdit(null); }}
-                onConfirm={handleSaveCatalogItem}
-                initialData={itemToEdit}
-            />
-            {/* We will refactor CreatePackageModal to be CreateComboModal */}
-            <CreatePackageModal
-                isOpen={isComboModalOpen}
-                onClose={() => { setIsComboModalOpen(false); setItemToEdit(null); }}
-                onConfirm={handleSaveCombo}
-                // We pass catalog items so the modal can show the checklist
-                catalogItems={catalogItems}
-                initialData={itemToEdit}
-            />
-
-            <ConfirmDeleteModal
-                isOpen={isDeleteModalOpen}
-                onClose={() => setIsDeleteModalOpen(false)}
-                onConfirm={handleConfirmDelete}
-                entityName={itemToDelete?.name}
-                entityType={itemToDelete?.type === 'catalog' ? 'Ítem' : 'Plan'}
-            />
-
-            {/* Filters */}
-            <Card className="border-none shadow-sm bg-white/80 backdrop-blur border border-slate-200/50">
-                <CardContent className="p-4 flex flex-col lg:flex-row gap-4 justify-between items-center">
-                    <div className="relative w-full lg:w-1/3">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                        <input type="text" placeholder={viewMode === 'catalog' ? "Buscar productos..." : "Buscar planes..."} className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            {activeTab === 'catalog' ? (
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                >
+                    {/* Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                                Administrador de Catálogo
+                            </h1>
+                            <p className="text-slate-500 mt-1">
+                                {viewMode === 'catalog' ? 'Define tus productos y precios base.' : 'Crea planes de productos.'}
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
+                                {['catalog', 'combos'].map((mode) => (
+                                    <button
+                                        key={mode}
+                                        onClick={() => setViewMode(mode)}
+                                        className={`relative px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-2 rounded-md ${viewMode === mode ? 'text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        {viewMode === mode && (
+                                            <motion.div
+                                                layoutId="services-view-switch"
+                                                className="absolute inset-0 bg-white rounded-md shadow-sm border border-slate-200/50"
+                                                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                            />
+                                        )}
+                                        <span className="relative z-10 flex items-center gap-2">
+                                            {mode === 'catalog' ? <LayoutGrid className="h-4 w-4" /> : <Package className="h-4 w-4" />}
+                                            {mode === 'catalog' ? 'Productos' : 'Planes'}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                            <Button
+                                onClick={() => viewMode === 'catalog' ? setIsServiceModalOpen(true) : setIsComboModalOpen(true)}
+                                className={`gap-2 text-white shadow-lg active:scale-95 transition-all w-[200px] justify-center bg-primary hover:bg-primary/90 shadow-primary/20`}
+                            >
+                                <Plus className="h-4 w-4" /> {viewMode === 'catalog' ? 'Nuevo Ítem' : 'Nuevo Plan'}
+                            </Button>
+                        </div>
                     </div>
-                    <div className="flex gap-3 items-center">
-                        <Button variant="ghost" size="sm" onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="h-9 px-3 text-slate-500 hover:text-slate-800 bg-slate-50 border border-slate-200">
-                            {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 mr-2" /> : <ArrowDown className="h-4 w-4 mr-2" />} Orden
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
 
-            {/* Content */}
-            {isLoading ? (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 w-full rounded-xl" />)}
-                </div>
-            ) : (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {viewMode === 'catalog' ? (
-                        filteredCatalog.length > 0 ? filteredCatalog.map(item => renderCatalogCard(item)) : (
-                            <div className="col-span-full"><EmptyState icon={PackageOpen} title="Catálogo Vacío" description="Define los productos o servicios base." actionLabel="Crear Primero" onAction={() => setIsServiceModalOpen(true)} /></div>
-                        )
+                    {/* Modals */}
+                    <CreateServiceModal
+                        isOpen={isServiceModalOpen}
+                        onClose={() => { setIsServiceModalOpen(false); setItemToEdit(null); }}
+                        onConfirm={handleSaveCatalogItem}
+                        initialData={itemToEdit}
+                    />
+                    {/* We will refactor CreatePackageModal to be CreateComboModal */}
+                    <CreatePackageModal
+                        isOpen={isComboModalOpen}
+                        onClose={() => { setIsComboModalOpen(false); setItemToEdit(null); }}
+                        onConfirm={handleSaveCombo}
+                        // We pass catalog items so the modal can show the checklist
+                        catalogItems={catalogItems}
+                        initialData={itemToEdit}
+                    />
+
+                    <ConfirmDeleteModal
+                        isOpen={isDeleteModalOpen}
+                        onClose={() => setIsDeleteModalOpen(false)}
+                        onConfirm={handleConfirmDelete}
+                        entityName={itemToDelete?.name}
+                        entityType={itemToDelete?.type === 'catalog' ? 'Ítem' : 'Plan'}
+                    />
+
+                    {/* Filters */}
+                    <Card className="border-none shadow-sm bg-white/80 backdrop-blur border border-slate-200/50 mt-6">
+                        <CardContent className="p-4 flex flex-col lg:flex-row gap-4 justify-between items-center">
+                            <div className="relative w-full lg:w-1/3">
+                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                <input type="text" placeholder={viewMode === 'catalog' ? "Buscar productos..." : "Buscar planes..."} className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                            </div>
+                            <div className="flex gap-3 items-center">
+                                <Button variant="ghost" size="sm" onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="h-9 px-3 text-slate-500 hover:text-slate-800 bg-slate-50 border border-slate-200">
+                                    {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 mr-2" /> : <ArrowDown className="h-4 w-4 mr-2" />} Orden
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Content */}
+                    {isLoading ? (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-6">
+                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 w-full rounded-xl" />)}
+                        </div>
                     ) : (
-                        filteredCombos.length > 0 ? filteredCombos.map(combo => renderComboCard(combo)) : (
-                            <div className="col-span-full"><EmptyState icon={Package} title="Sin Planes" description="Agrupa productos en paquetes atractivos." actionLabel="Crear Plan" onAction={() => setIsComboModalOpen(true)} /></div>
-                        )
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-6">
+                            {viewMode === 'catalog' ? (
+                                filteredCatalog.length > 0 ? filteredCatalog.map(item => renderCatalogCard(item)) : (
+                                    <div className="col-span-full"><EmptyState icon={PackageOpen} title="Catálogo Vacío" description="Define los productos o servicios base." actionLabel="Crear Primero" onAction={() => setIsServiceModalOpen(true)} /></div>
+                                )
+                            ) : (
+                                filteredCombos.length > 0 ? filteredCombos.map(combo => renderComboCard(combo)) : (
+                                    <div className="col-span-full"><EmptyState icon={Package} title="Sin Planes" description="Agrupa productos en paquetes atractivos." actionLabel="Crear Plan" onAction={() => setIsComboModalOpen(true)} /></div>
+                                )
+                            )}
+                        </div>
                     )}
-                </div>
+                </motion.div>
+            ) : (
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className="mt-6"
+                >
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex flex-col">
+                            <h2 className="text-xl font-bold text-slate-900">Suscripciones Activas</h2>
+                            <span className="text-sm text-slate-500">
+                                {filteredSubscriptions.length} Servicios detectados
+                            </span>
+                        </div>
+                        {/* Search Bar for Subscriptions */}
+                        <div className="relative w-full max-w-xs">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por cliente, servicio..."
+                                className="w-full pl-10 pr-4 py-2 rounded-xl border-slate-200 bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm outline-none shadow-sm transition-all"
+                                value={subscriptionSearchTerm}
+                                onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    {(isSubscriptionsLoading || loadingClients) ? (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-48 w-full rounded-xl" />)}
+                        </div>
+                    ) : filteredSubscriptions.length > 0 ? (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {filteredSubscriptions.map(service => (
+                                <ServiceInstanceCard
+                                    key={service.id}
+                                    service={service}
+                                    clientName={getClientName(service.client_id)}
+                                    comboList={combos}
+                                    onEdit={handleEditSubscription}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-20 px-4 border border-dashed border-slate-200 rounded-2xl bg-slate-50/30">
+                            <EmptyState
+                                icon={Zap}
+                                title="Sin resultados"
+                                description={subscriptionSearchTerm ? "No se encontraron servicios con esa búsqueda." : "No hay servicios activos registrados en el sistema."}
+                                actionLabel={!subscriptionSearchTerm ? "Ir a Clientes" : null}
+                                onAction={() => window.location.href = '/clients'}
+                            />
+                        </div>
+                    )}
+
+                    {/* Edit Modal */}
+                    <EditServiceInstanceModal
+                        isOpen={isEditSubscriptionModalOpen}
+                        onClose={() => setIsEditSubscriptionModalOpen(false)}
+                        onConfirm={handleUpdateSubscription}
+                        service={subscriptionToEdit}
+                    />
+                </motion.div>
             )}
         </PageTransition>
     );

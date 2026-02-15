@@ -219,6 +219,13 @@ export const combosAPI = {
 
 // 3. SERVICES API (Client Instances / Plates Served)
 export const servicesAPI = {
+    // List ALL active services (Global)
+    getAll: (params = {}) => {
+        const query = new URLSearchParams({ ...params, _t: Date.now() }).toString();
+        // Endpoint specified by user: /v1/services
+        return request(`/v1/services?${query}`, 'GET');
+    },
+
     // List services for a specific client
     getByClient: (clientId) => {
         // Strict path: /services/client/:clientId (Singular)
@@ -246,6 +253,10 @@ export const servicesAPI = {
 
     assignComboToClient: (clientId, comboId) => {
         return request(`/v1/services/clients/${clientId}/bundle`, 'POST', { combo_service_id: comboId });
+    },
+
+    update: (id, data) => {
+        return request(`/v1/services/${id}`, 'PATCH', data);
     },
 
     remove: (serviceInstanceId) => {
