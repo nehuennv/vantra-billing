@@ -7,6 +7,14 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# ARG and ENV must be declared here to be available during build
+ARG VITE_API_URL
+ARG VITE_API_KEY
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_API_KEY=$VITE_API_KEY
+
 RUN npm run build
 
 # Stage 2: Serve the application with Nginx
