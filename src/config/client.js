@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 export const clientConfig = {
-    name: "GlobalTech",
+    name: "Global Tech",
     // logo: "/path/to/logo.png", // Optional: if present, overrides name/icon
 
     // --- LOGOTIPOS DISPONIBLES (Descomenta el que quieras usar) ---
@@ -59,7 +59,7 @@ export const clientConfig = {
     // icon: Ghost,       // Lúdico / Joven
     // icon: Star,        // Destacado / Favorito
     // icon: Heart,       // Cuidado / Salud
-    icon: Globe,       // Default actual (cambiar s/ preferencia)
+    icon: Globe,       // Global / Tech World
 
     colors: {
         primary: "#059669", // Indigo-600 (Vibrant & Deep)

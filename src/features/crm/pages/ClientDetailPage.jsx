@@ -319,9 +319,31 @@ export default function ClientDetailPage() {
         setIsPreviewOpen(true);
     };
 
-    const handleViewInvoice = (invoice) => {
+    const handleViewInvoice = async (invoice) => {
+        // Optimistic open
         setViewInvoice(invoice);
         setIsViewModalOpen(true);
+
+        try {
+            // Fetch full details
+            const response = await invoiceAPI.getOne(invoice.id);
+            let detail = response.data || response;
+
+            // Normalize items if needed
+            if (detail && detail.items) {
+                detail.items = detail.items.map(i => ({
+                    description: i.description || i.name || 'Servicio',
+                    quantity: Number(i.quantity || 1),
+                    unit_price: Number(i.unit_price || i.price || 0),
+                    total_price: Number(i.total_price || (i.price * (i.quantity || 1)) || 0)
+                }));
+            }
+
+            setViewInvoice(detail);
+        } catch (error) {
+            console.error("Error loading invoice details", error);
+            toast.error("Error al cargar detalle de factura");
+        }
     };
 
     const handleDownloadInvoice = async (invoiceData) => {
@@ -1136,24 +1158,37 @@ export default function ClientDetailPage() {
                                                     className="hover:bg-slate-50 cursor-pointer transition-colors group"
                                                 >
                                                     <td className="px-6 py-3 text-slate-600">
-                                                        {inv.issueDate ? new Date(inv.issueDate).toLocaleDateString('es-AR') : new Date(inv.created_at).toLocaleDateString('es-AR')}
+                                                        {inv.issueDate ? new Date(inv.issueDate).toLocaleDateString('es-AR') : (inv.created_at ? new Date(inv.created_at).toLocaleDateString('es-AR') : '-')}
                                                     </td>
                                                     <td className="px-6 py-3 font-mono text-xs text-slate-500">
-                                                        {inv.number || 'Pendiente'}
+                                                        {inv.invoice_number || inv.number || 'Pendiente'}
                                                     </td>
                                                     <td className="px-6 py-3 font-medium text-slate-700 truncate max-w-[200px]">
                                                         {inv.description || 'Factura de Servicios'}
                                                     </td>
                                                     <td className="px-6 py-3 text-center">
-                                                        <Badge variant={inv.status === 'paid' ? 'success' : 'warning'} className="text-[10px]">
-                                                            {inv.status === 'paid' ? 'Pagado' : 'Pendiente'}
+                                                        <Badge variant={
+                                                            inv.status === 'PAID' ? 'success' :
+                                                                inv.status === 'EMITTED' || inv.status === 'SENT' ? 'default' :
+                                                                    inv.status === 'VOID' ? 'destructive' : 'warning'
+                                                        } className="text-[10px]">
+                                                            {
+                                                                inv.status === 'PAID' ? 'Pagado' :
+                                                                    inv.status === 'EMITTED' ? 'Emitida' :
+                                                                        inv.status === 'SENT' ? 'Enviada' :
+                                                                            inv.status === 'VOID' ? 'Anulada' :
+                                                                                inv.status === 'ERROR_AFIP' ? 'Error AFIP' : 'Pendiente'
+                                                            }
                                                         </Badge>
                                                     </td>
                                                     <td className="px-6 py-3 text-right font-bold text-slate-900">
-                                                        ${(inv.amount || inv.total || 0).toLocaleString()}
+                                                        ${(item => {
+                                                            const val = item.total_amount !== undefined ? item.total_amount : (item.amount || item.total || 0);
+                                                            return Number(val).toLocaleString();
+                                                        })(inv)}
                                                     </td>
                                                     <td className="px-6 py-3 text-center">
-                                                        {inv.status === 'pending' ? (
+                                                        {inv.status === 'pending' || inv.status === 'EMITTED' || inv.status === 'SENT' ? (
                                                             <Button
                                                                 size="sm"
                                                                 variant="ghost"

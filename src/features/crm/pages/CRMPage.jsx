@@ -285,7 +285,7 @@ export default function CRMPage() {
     );
 
     return (
-        <PageTransition className="h-[calc(100vh-8rem)] flex flex-col gap-6">
+        <PageTransition className="h-[calc(100vh-8rem)] flex flex-col">
             {/* --- TOP LEVEL TABS --- */}
             <div className="flex items-center space-x-8 border-b border-slate-200 mb-8">
                 <button
@@ -295,7 +295,7 @@ export default function CRMPage() {
                         : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
-                    Lista de Clientes
+                    Listado
                     {viewMode === 'list' && (
                         <motion.div
                             layoutId="activeTabUnderline"
@@ -311,7 +311,7 @@ export default function CRMPage() {
                         : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
-                    Tablero Kanban
+                    Tablero
                     {viewMode === 'board' && (
                         <motion.div
                             layoutId="activeTabUnderline"
