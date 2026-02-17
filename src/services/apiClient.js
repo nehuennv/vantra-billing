@@ -127,6 +127,13 @@ export const invoiceAPI = {
         return request(`/v1/invoices/${id}`, 'GET');
     },
 
+    // --- ESTO ES LO QUE FALTABA ---
+    create: (data) => {
+        // data: { clientId, period, items, options }
+        return request('/v1/invoices', 'POST', data);
+    },
+    // -----------------------------
+
     getPdf: async (id) => {
         // Special case: we need the blob, not JSON
         const API_URL = import.meta.env.VITE_API_URL;

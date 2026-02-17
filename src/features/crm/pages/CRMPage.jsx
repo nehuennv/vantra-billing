@@ -286,88 +286,100 @@ export default function CRMPage() {
 
     return (
         <PageTransition className="h-[calc(100vh-8rem)] flex flex-col gap-6">
-            {/* --- FIXED HEADER SECTION --- */}
-            <div className="flex-none space-y-6">
-                {/* HEADER TITLE & ACTIONS */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Clientes</h1>
-                        <p className="text-slate-500 mt-1">Base de datos de abonados y prospectos.</p>
-                    </div>
+            {/* --- TOP LEVEL TABS --- */}
+            <div className="flex items-center space-x-8 border-b border-slate-200 mb-8">
+                <button
+                    onClick={() => setViewMode('list')}
+                    className={`pb-4 text-sm font-medium transition-colors relative ${viewMode === 'list'
+                        ? 'text-slate-900'
+                        : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                >
+                    Lista de Clientes
+                    {viewMode === 'list' && (
+                        <motion.div
+                            layoutId="activeTabUnderline"
+                            className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        />
+                    )}
+                </button>
+                <button
+                    onClick={() => setViewMode('board')}
+                    className={`pb-4 text-sm font-medium transition-colors relative ${viewMode === 'board'
+                        ? 'text-slate-900'
+                        : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                >
+                    Tablero Kanban
+                    {viewMode === 'board' && (
+                        <motion.div
+                            layoutId="activeTabUnderline"
+                            className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        />
+                    )}
+                </button>
+            </div>
 
-                    <div className="flex items-center gap-3">
-                        {/* View Switcher */}
-                        <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
-                            {['list', 'board'].map((mode) => (
-                                <button
-                                    key={mode}
-                                    onClick={() => setViewMode(mode)}
-                                    className={`relative px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-2 rounded-md ${viewMode === mode ? 'text-primary' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    {viewMode === mode && (
-                                        <motion.div
-                                            layoutId="crm-view-switch"
-                                            className="absolute inset-0 bg-white rounded-md shadow-sm border border-slate-200/50"
-                                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                                        />
-                                    )}
-                                    <span className="relative z-10 flex items-center gap-2">
-                                        {mode === 'list' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-                                        {mode === 'list' ? 'Lista' : 'Tablero'}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-
-                        <Button
-                            onClick={() => setIsCreateModalOpen(true)}
-                            className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-95 w-[220px] justify-center"
-                        >
-                            <Plus className="h-4 w-4" /> Nuevo Cliente
-                        </Button>
-                    </div>
+            {/* --- ACTION HEADER --- */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-900">
+                        {viewMode === 'list' ? 'Listado General' : 'Gestión de Estados'}
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                        {pagination.total} Clientes registrados
+                    </p>
                 </div>
 
-                {/* BARRA DE BÚSQUEDA Y FILTROS */}
-                <Card className="shadow-none border border-slate-200/60 bg-white/50 backdrop-blur-none">
-                    <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center">
-                        <div className="relative flex-1 w-full">
-                            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <div className="flex items-center gap-3">
+                    {/* Search Bar - Compact */}
+                    <div className="relative">
+                        <div className="flex items-center bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm w-full md:w-64">
+                            <Search className="ml-2 h-4 w-4 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Buscar por nombre, empresa, CUIT, teléfono..."
-                                className="w-full pl-10 pr-4 py-2.5 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm transition-all outline-none"
+                                placeholder="Buscar cliente..."
+                                className="w-full pl-2 pr-4 py-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
+                    </div>
 
-                        {/* Status Filters */}
-                        <div className="flex items-center gap-4">
-                            <select
-                                value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-primary focus:border-primary block p-2.5 outline-none"
-                            >
-                                <option value="all">Todos los Estados</option>
-                                {columns.map(col => (
-                                    <option key={col.id} value={col.id}>{col.title}</option>
-                                ))}
-                            </select>
-                            <div className="h-4 w-px bg-slate-200"></div>
+                    <Button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        size="sm"
+                        className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm h-9"
+                    >
+                        <Plus className="h-4 w-4" /> Nuevo Cliente
+                    </Button>
+                </div>
+            </div>
 
-                            <label className="inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    className="sr-only peer"
-                                    checked={showInactive}
-                                    onChange={(e) => setShowInactive(e.target.checked)}
-                                />
-                                <div className="relative w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                                <span className="ms-3 text-sm font-medium text-slate-600 select-none">Mostrar Inactivos</span>
-                            </label>
-                        </div>
-                    </CardContent>
-                </Card>
+            {/* --- FILTERS (Conditional/Optional) --- */}
+            <div className="flex items-center gap-4 mb-6">
+                <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-primary focus:border-primary block p-2 outline-none"
+                >
+                    <option value="all">Todos los Estados</option>
+                    {columns.map(col => (
+                        <option key={col.id} value={col.id}>{col.title}</option>
+                    ))}
+                </select>
+
+                <label className="inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={showInactive}
+                        onChange={(e) => setShowInactive(e.target.checked)}
+                    />
+                    <div className="relative w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                    <span className="ms-3 text-sm font-medium text-slate-500 select-none">Inactivos</span>
+                </label>
             </div>
 
             {/* --- SCROLLABLE CONTENT SECTION --- */}

@@ -1,8 +1,8 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./ProtectedRoute";
 import LoginPage from "../features/auth/pages/LoginPage";
 import { MainLayout } from "../components/layout/MainLayout";
-import DashboardPage from "../features/dashboard/pages/DashboardPage";
+
 import ClientDetailPage from "../features/crm/pages/ClientDetailPage";
 import ServicesPage from "../features/services/pages/ServicesPage";
 
@@ -18,7 +18,7 @@ export function AppRoutes() {
 
             <Route element={<ProtectedRoute />}>
                 <Route path="/" element={<MainLayout />}>
-                    <Route index element={<DashboardPage />} />
+                    <Route index element={<Navigate to="/crm" replace />} />
                     <Route path="crm" element={<CRMPage />} />
                     <Route path="crm/clients/:id" element={<ClientDetailPage />} />
 

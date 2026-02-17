@@ -13,6 +13,7 @@ const navigation = [
     // { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Clientes", href: "/crm", icon: Users },
     { name: "Servicios", href: "/services", icon: Briefcase },
+    { name: "Facturación", href: "/billing", icon: CreditCard },
     { name: "Configuración", href: "/settings", icon: Settings },
 ];
 
