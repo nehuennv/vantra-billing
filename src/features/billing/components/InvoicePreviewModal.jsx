@@ -10,6 +10,7 @@ import { createInvoice } from '../services/invoiceService';
 import { invoiceAPI } from '../../../services/apiClient'; // Import for direct use if needed or use service
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from './InvoicePDF';
+import { MonthYearPicker } from './MonthYearPicker';
 
 // --- SUB-COMPONENTS FOR ANIMATION ---
 
@@ -46,11 +47,11 @@ const LoadingSteps = ({ currentStep }) => {
             {/* Steps Container */}
             <div className="w-full space-y-4 px-4 relative">
                 {/* Progress Bar Background */}
-                <div className="absolute left-6 top-2 bottom-2 w-0.5 bg-slate-100 rounded-full" />
+                <div className="absolute left-[31px] top-2 bottom-2 w-0.5 bg-slate-100 rounded-full" />
 
                 {/* Progress Line */}
                 <motion.div
-                    className="absolute left-6 top-2 w-0.5 bg-emerald-500 rounded-full origin-top"
+                    className="absolute left-[31px] top-2 w-0.5 bg-emerald-500 rounded-full origin-top"
                     initial={{ height: 0 }}
                     animate={{ height: `${(currentStep / (steps.length - 1)) * 100}%` }}
                     transition={{ duration: 0.5, ease: "easeInOut" }}
@@ -71,15 +72,17 @@ const LoadingSteps = ({ currentStep }) => {
                             }}
                             className={`relative flex items-center gap-4 text-base transition-colors duration-300 pl-2 ${isActive ? 'text-emerald-800 font-semibold' : 'text-slate-500'}`}
                         >
-                            <motion.div
-                                animate={{
-                                    scale: isActive ? [1, 1.2, 1] : 1,
-                                    backgroundColor: isCompleted || isActive ? '#10b981' : '#e2e8f0',
-                                    borderColor: isActive ? '#d1fae5' : 'transparent'
-                                }}
-                                transition={{ duration: 0.5 }}
-                                className={`z-10 h-4 w-4 rounded-full border-2 shadow-sm shrink-0 ${isActive ? 'ring-4 ring-emerald-500/20' : ''}`}
-                            />
+                            <div className="relative z-10 flex items-center justify-center w-6 h-6 shrink-0">
+                                <motion.div
+                                    animate={{
+                                        scale: isActive ? [1, 1.2, 1] : 1,
+                                        backgroundColor: isCompleted || isActive ? '#10b981' : '#e2e8f0',
+                                        borderColor: isActive ? '#d1fae5' : 'transparent'
+                                    }}
+                                    transition={{ duration: 0.5 }}
+                                    className={`h-4 w-4 rounded-full border-2 shadow-sm ${isActive ? 'ring-4 ring-emerald-500/20' : ''}`}
+                                />
+                            </div>
 
                             <span className="truncate">{step}</span>
 
@@ -421,10 +424,10 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
             </div>
 
             {/* Scrollable Body */}
-            <div className="flex-1 overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-0 h-full">
+            <div className="flex-1 overflow-hidden relative">
+                <div className="flex flex-col md:grid md:grid-cols-12 gap-0 h-full overflow-hidden">
                     {/* Columna Izquierda: Configuración */}
-                    <div className="md:col-span-4 bg-slate-50/50 border-r border-slate-100 p-6 flex flex-col gap-6 overflow-y-auto">
+                    <div className="w-full md:col-span-4 bg-slate-50/50 border-r border-slate-100 p-6 flex flex-col gap-6 overflow-y-auto shrink-0 md:h-full max-h-[40vh] md:max-h-full border-b md:border-b-0">
 
                         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                             <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 block">Configuración General</Label>
@@ -433,19 +436,19 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                 <div className="space-y-2">
                                     <Label className="text-slate-700 font-medium">Periodo de Facturación</Label>
                                     <div className="relative group">
-                                        <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                        <Input
-                                            type="month"
+                                        <MonthYearPicker
                                             value={period}
-                                            onChange={(e) => setPeriod(e.target.value)}
-                                            className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all rounded-xl"
-                                            readOnly={readOnly}
+                                            onChange={setPeriod}
+                                            className={cn(
+                                                "h-11 bg-slate-50 border-slate-200 transition-all rounded-xl",
+                                                !readOnly && "hover:bg-white hover:border-emerald-300 hover:shadow-sm"
+                                            )}
                                         />
                                     </div>
                                 </div>
 
                                 {!readOnly && (
-                                    <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-emerald-50/50 border-emerald-200 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                    <label className={`hidden flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-emerald-50/50 border-emerald-200 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
                                         <div className="flex items-center h-5 mt-0.5">
                                             <input
                                                 type="checkbox"
@@ -481,7 +484,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                     </div>
 
                     {/* Columna Derecha: Items */}
-                    <div className="md:col-span-8 bg-white flex flex-col h-full overflow-hidden">
+                    <div className="w-full md:col-span-8 bg-white flex flex-col h-full overflow-hidden flex-1">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white z-10">
                             <h3 className="text-base font-bold text-slate-800">Conceptos a Facturar</h3>
                             {!readOnly && (

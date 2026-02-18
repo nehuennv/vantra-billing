@@ -14,7 +14,7 @@ import { CatalogItemCard } from "../components/CatalogItemCard";
 import { ComboItemCard } from "../components/ComboItemCard";
 
 // API
-import { catalogAPI, combosAPI, servicesAPI } from "../../../services/apiClient";
+import { catalogAPI, combosAPI, servicesAPI, request } from "../../../services/apiClient";
 import { clientConfig } from "../../../config/client";
 import { useToast } from '../../../hooks/useToast';
 import { useClientLookup } from '../../../hooks/useClientLookup';
@@ -278,28 +278,80 @@ export default function ServicesPage() {
     };
 
     const handleUpdateSubscription = async (updatedService) => {
-        // updatedService has the updated fields. We call servicesAPI.update(id, payload)
-        // Payload should only contain modifiable fields
-        const payload = {
-            name: updatedService.name,
-            unit_price: updatedService.unit_price,
-            quantity: updatedService.quantity,
-            description: updatedService.description
-        };
+        // CORRECTION: The backend blocks PATCH due to CORS.
+        // We must use PUT /v1/services/client/:clientId/sync (Mirror)
+        // This requires sending the FULL list of services to avoid deletion.
+
+        const client_id = updatedService.client_id;
+        if (!client_id) {
+            toast.error("Error: No se pudo identificar al cliente.");
+            return;
+        }
 
         const promise = async () => {
-            await servicesAPI.update(updatedService.id, payload);
-            // Refresh logic: We could just update local state or refetch. 
-            // Refetch is safer to ensure sync.
-            const response = await servicesAPI.getAll();
-            const list = Array.isArray(response) ? response : (response.data || []);
+            // 1. Fetch ALL active/inactive services for this client to ensure we don't lose anything
+            // We need to be careful: if we only fetch active, we might delete inactive ones if the backend syncs everything.
+            // The sync endpoint documentation says: "Services in DB not in array -> deleted".
+            // So we MUST fetch everything. active_only=false is default? No, usually true.
+            // Let's check apiClient.
+            // getByClient usually returns what?
+            // Let's use request directly or ensure getByClient supports params if needed.
+            // actually servicesAPI.getByClient just does GET /v1/services/client/:id
+            // We need to make sure we get ALL services.
+            // Looking at API docs: GET /api/v1/services/client/:clientId?active_only=true (default)
+            // We need active_only=false to be safe!
+
+            const response = await request(`/v1/services/client/${client_id}?active_only=false`, 'GET');
+            const currentServices = Array.isArray(response) ? response : (response.data || []);
+
+            // 2. Modify the target service in the list and SANITIZE payload
+            // The sync endpoint is strict: it likely rejects read-only fields like created_at, updated_at, display_code.
+            // We must construct a clean objects list.
+            const allowedFields = ['id', 'name', 'unit_price', 'quantity', 'service_type', 'is_active', 'icon', 'origin_plan_id', 'description', 'start_date'];
+
+            const updatedList = currentServices.map(s => {
+                let serviceToSync = { ...s };
+
+                if (s.id === updatedService.id) {
+                    serviceToSync = {
+                        ...s,
+                        name: updatedService.name,
+                        unit_price: updatedService.unit_price,
+                        quantity: updatedService.quantity,
+                        description: updatedService.description
+                    };
+                }
+
+                // Filter to only allowed fields AND ensure types
+                const cleanService = {};
+                allowedFields.forEach(field => {
+                    if (serviceToSync[field] !== undefined) {
+                        if (field === 'unit_price') {
+                            cleanService[field] = Number(serviceToSync[field]);
+                        } else if (field === 'quantity') {
+                            cleanService[field] = Number(serviceToSync[field]);
+                        } else {
+                            cleanService[field] = serviceToSync[field];
+                        }
+                    }
+                });
+
+                return cleanService;
+            });
+
+            // 3. Sync
+            await servicesAPI.sync(client_id, updatedList);
+
+            // 4. Refresh local state
+            const res = await servicesAPI.getAll();
+            const list = Array.isArray(res) ? res : (res.data || []);
             setSubscriptions(list);
         };
 
         toast.promise(promise(), {
-            loading: 'Actualizando servicio...',
-            success: 'Servicio actualizado',
-            error: 'Error al actualizar servicio'
+            loading: 'Sincronizando cambios...',
+            success: 'Servicio actualizado correctamente',
+            error: 'Error al sincronizar servicio'
         });
         setIsEditSubscriptionModalOpen(false);
         setSubscriptionToEdit(null);

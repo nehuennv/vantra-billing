@@ -29,7 +29,7 @@ export function ClientSelector({ onSelect, selectedClientId }) {
 
     const filteredClients = clients.filter(client =>
         client.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.cuit?.includes(searchTerm) ||
+        client.tax_id?.includes(searchTerm) ||
         client.contact_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -68,31 +68,31 @@ export function ClientSelector({ onSelect, selectedClientId }) {
                                 key={client.id}
                                 onClick={() => onSelect(client)}
                                 className={cn(
-                                    "cursor-pointer group relative p-4 rounded-xl border transition-all duration-200 hover:shadow-md",
+                                    "cursor-pointer group relative p-4 rounded-xl border-2 transition-all duration-300 ease-in-out",
                                     isSelected
-                                        ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                        : "border-slate-200 bg-white hover:border-primary/30"
+                                        ? "border-primary bg-primary/5"
+                                        : "border-transparent bg-slate-50 hover:bg-slate-100 hover:border-slate-200"
                                 )}
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className={cn(
-                                            "h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold transition-colors",
-                                            isSelected ? "bg-primary text-white" : "bg-slate-100 text-slate-500 group-hover:bg-primary/10 group-hover:text-primary"
+                                            "h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold transition-colors shrink-0",
+                                            isSelected ? "bg-primary text-white" : "bg-white text-slate-500 border border-slate-100 group-hover:border-primary/20 group-hover:text-primary"
                                         )}>
                                             {client.company_name?.[0]?.toUpperCase() || <User className="h-5 w-5" />}
                                         </div>
-                                        <div>
-                                            <h4 className={cn("font-medium text-sm", isSelected ? "text-primary" : "text-slate-900")}>
+                                        <div className="overflow-hidden">
+                                            <h4 className={cn("font-medium text-sm truncate", isSelected ? "text-primary" : "text-slate-900")}>
                                                 {client.company_name}
                                             </h4>
-                                            <p className="text-xs text-slate-500 font-mono mt-0.5">
-                                                {client.cuit || "Sin CUIT"}
+                                            <p className="text-xs text-slate-500 font-mono mt-0.5 truncate">
+                                                {client.tax_id || "Sin CUIT"}
                                             </p>
                                         </div>
                                     </div>
                                     {isSelected && (
-                                        <div className="h-6 w-6 bg-primary rounded-full flex items-center justify-center animate-in zoom-in-50">
+                                        <div className="h-6 w-6 bg-primary rounded-full flex items-center justify-center animate-in zoom-in-50 shrink-0">
                                             <Check className="h-3.5 w-3.5 text-white" />
                                         </div>
                                     )}
@@ -102,6 +102,6 @@ export function ClientSelector({ onSelect, selectedClientId }) {
                     })
                 )}
             </div>
-        </div>
+        </div >
     );
 }

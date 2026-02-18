@@ -18,7 +18,8 @@ export function CatalogItemSelector({ onSelect, trigger }) {
             catalogAPI.getAll()
                 .then(response => {
                     const list = Array.isArray(response) ? response : (response.data || []);
-                    setItems(list);
+                    // Filter: Only show items that are NOT custom (is_custom = false/null/undefined)
+                    setItems(list.filter(item => !item.is_custom));
                 })
                 .catch(err => console.error("Error fetching catalog", err))
                 .finally(() => setLoading(false));
