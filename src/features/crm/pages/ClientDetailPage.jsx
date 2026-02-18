@@ -416,62 +416,21 @@ export default function ClientDetailPage() {
         });
     };
 
-    const handleConfirmInvoice = async (invoiceDataArg) => {
-        setIsGenerating(true);
-        const promise = async () => {
-            // 1. Save to Backend (Mock)
-            const invoiceData = {
-                number: invoiceDataArg.number,
-                issueDate: invoiceDataArg.issueDate,
-                dueDate: invoiceDataArg.dueDate,
-                items: invoiceDataArg.items,
-                amount: invoiceDataArg.total, // Map total to amount for compatibility
-                status: 'pending',
-                description: `Factura ${invoiceDataArg.number}`, // Add description for UI
-                invoiceType: invoiceDataArg.invoiceType // Ensure type is passed
-            };
+    const handleInvoiceCreated = (newInvoice) => {
+        // Optimistic Update: Add to list immediately
+        setInvoices(prev => [newInvoice, ...prev]);
 
-            // 1. Save to Backend
-            // We need to adapt data to what API expects.
-            // API expects: { client_id, items: [...], ... }
-            await invoiceAPI.create(client.id, invoiceData);
-
-            // 2. Refresh Invoices
-            const invResponse = await invoiceAPI.getAll({ client_id: client.id });
-            setInvoices(invResponse.data || []);
-
-            // Refresh Client Data (optional)
-            const clientData = await clientAPI.getOne(id);
-            setClient(clientData);
-
-            // 3. Generate PDF
-            const blob = await pdf(
-                <InvoicePDF
-                    client={client}
-                    items={invoiceData.items}
-                    invoiceNumber={invoiceData.number}
-                    issueDate={invoiceData.issueDate}
-                    dueDate={invoiceData.dueDate}
-                    invoiceType={invoiceData.invoiceType} // Pass type
-                />
-            ).toBlob();
-
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `factura-${client.company_name?.replace(/\s+/g, '_') || 'cliente'}-${invoiceData.number}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        };
-
-        toast.promise(promise(), {
-            loading: 'Generando factura...',
-            success: 'Factura generada exitosamente',
-            error: 'Error al generar la factura',
-            finally: () => setIsGenerating(false)
+        // Also refresh client data in background to ensure balance/status is up to date
+        clientAPI.getOne(id).then(data => {
+            if (data) setClient(adaptClient(data));
         });
+    };
+
+    // Legacy handler kept for compatibility if needed, but the Modal now handles the API call
+    const handleConfirmInvoice = async (invoiceDataArg) => {
+        // This function might be deprecated if the Modal handles everything, 
+        // but we'll keep it/refactor it if the modal calls it. 
+        // Currently InvoicePreviewModal calls createInvoice directly, so we just need to pass the callback.
     };
 
     const handleToggleStatus = async (e, invoice) => {
@@ -1242,98 +1201,60 @@ export default function ClientDetailPage() {
                 </div >
             </div >
 
-            {/* --- MODALS (SIN CAMBIOS EN LÓGICA) --- */}
-            {
-                client && isBudgetManagerOpen && (
-                    <BudgetManagerModal
-                        isOpen={isBudgetManagerOpen}
-                        onClose={() => setIsBudgetManagerOpen(false)}
-                        client={{ ...client, activeServices: services }}
-                        onSave={handleSaveBudget}
-                    />
-                )
-            }
 
-            {
-                client && (
-                    <InvoicePreviewModal
-                        open={isPreviewOpen}
-                        onOpenChange={setIsPreviewOpen}
-                        client={client}
-                        items={services}
-                        onConfirm={handleConfirmInvoice}
-                    />
-                )
-            }
+            {/* --- MODALS --- */}
+            <BudgetManagerModal
+                isOpen={isBudgetManagerOpen}
+                onClose={() => setIsBudgetManagerOpen(false)}
+                client={client}
+                services={services}
+                onSave={handleSaveBudget}
+            />
 
-            {
-                client && viewInvoice && (
-                    <InvoicePreviewModal
-                        open={isViewModalOpen}
-                        onOpenChange={setIsViewModalOpen}
-                        client={client}
-                        items={[]}
-                        initialData={viewInvoice}
-                        readOnly={true}
-                        onConfirm={handleDownloadInvoice}
-                    />
-                )
-            }
+            <InvoicePreviewModal
+                open={isPreviewOpen}
+                onOpenChange={setIsPreviewOpen}
+                client={client}
+                items={services} // Pass current services as default items
+                onInvoiceCreated={handleInvoiceCreated}
+            />
 
-            {
-                client && (
-                    <CreateClientModal
-                        isOpen={isEditClientOpen}
-                        onClose={() => setIsEditClientOpen(false)}
-                        columns={statuses.length > 0 ? statuses : [{ id: client.status, title: client.status.toUpperCase() }]}
-                        onUpdate={handleUpdateClient}
-                        clientToEdit={client}
-                        onAddColumn={() => { }}
-                    />
-                )
-            }
+            {/* View Invoice Modal (Read Only) */}
+            <InvoicePreviewModal
+                open={isViewModalOpen}
+                onOpenChange={setIsViewModalOpen}
+                client={client}
+                initialData={viewInvoice}
+                readOnly={true}
+            />
+
+            <CreateClientModal
+                isOpen={isEditClientOpen}
+                onClose={() => setIsEditClientOpen(false)}
+                clientToEdit={client}
+                onUpdate={handleUpdateClient}
+                columns={statusList}
+                onAddColumn={(newCol) => setStatusList(prev => [...prev, newCol])}
+            />
 
             <DeleteConfirmationModal
                 isOpen={deleteModal.isOpen}
-                onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}
+                onClose={() => setDeleteModal({ isOpen: false, type: null })}
                 onConfirm={handleStatusChange}
-                title={deleteModal.type === 'reactivate' ? "Reactivar cliente" : "Deshabilitar cliente"}
+                title={deleteModal.type === 'reactivate' ? "Reactivar Cliente" : "Deshabilitar Cliente"}
                 description={deleteModal.type === 'reactivate'
-                    ? "El cliente volverá a estar activo y visible en los listados principales."
-                    : "El cliente pasará a estado inactivo y se ocultará de la lista principal."}
+                    ? "¿Estás seguro de que deseas reactivar este cliente?"
+                    : "El cliente pasará a estado inactivo. No se generarán nuevas facturas, pero el historial se mantendrá."}
                 confirmText={deleteModal.type === 'reactivate' ? "Reactivar" : "Deshabilitar"}
-                variant={deleteModal.type === 'reactivate' ? "default" : "warning"}
-            />
-            <DeleteConfirmationModal
-                isOpen={!!serviceToDelete}
-                onClose={() => setServiceToDelete(null)}
-                onConfirm={async () => {
-                    if (!serviceToDelete) return;
-
-                    const promise = async () => {
-                        await mockBackend.deleteClientService(serviceToDelete.id);
-                        setServices(prev => prev.filter(s => s.id !== serviceToDelete.id));
-                    };
-
-                    toast.promise(promise(), {
-                        loading: 'Eliminando servicio...',
-                        success: 'Servicio eliminado',
-                        error: 'Error al eliminar servicio'
-                    });
-                    setServiceToDelete(null);
-                }}
-                title="Eliminar Servicio"
-                description={`¿Estás seguro de que deseas eliminar el servicio "${serviceToDelete?.name}"? Esta acción no se puede deshacer.`}
-                confirmText="Eliminar"
-                variant="destructive"
+                variant={deleteModal.type === 'reactivate' ? "success" : "destructive"}
             />
 
             <DeleteConfirmationModal
                 isOpen={!!comboToDelete}
                 onClose={() => setComboToDelete(null)}
                 onConfirm={handleDeleteCombo}
-                title="Eliminar Combo"
-                description={`¿Estás seguro de que deseas eliminar el combo "${comboToDelete?.name}" y todos sus servicios incluidos?`}
+                title="Eliminar Plan Agrupado"
+                description={`Se eliminarán todos los servicios asociados al plan "${comboToDelete?.name}". Esta acción no se puede deshacer.`}
                 confirmText="Eliminar Todo"
                 variant="destructive"
             />

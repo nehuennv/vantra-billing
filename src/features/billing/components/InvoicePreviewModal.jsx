@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Plus, Download, Calendar, Send, Loader2, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
+import { Trash2, Plus, Download, Calendar, Send, Loader2, AlertCircle, FileText, CheckCircle2, XCircle, ChevronRight, Check, DollarSign } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../components/ui/Dialog';
@@ -7,15 +7,202 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
 import { createInvoice } from '../services/invoiceService';
+import { invoiceAPI } from '../../../services/apiClient'; // Import for direct use if needed or use service
+import { pdf } from '@react-pdf/renderer';
+import { InvoicePDF } from './InvoicePDF';
 
-const LOADING_MESSAGES = [
-    "Validando datos...",
-    "Conectando con servicio de facturación...",
-    "Negociando con ARCA/AFIP...",
-    "Generando comprobante fiscal (CAE)...",
-    "Firmando digitalmente el PDF...",
-    "Finalizando operación..."
-];
+// --- SUB-COMPONENTS FOR ANIMATION ---
+
+const LoadingSteps = ({ currentStep }) => {
+    const steps = [
+        "Validando datos...",
+        "Conectando con servicio de facturación...",
+        "Negociando con ARCA/AFIP...",
+        "Generando comprobante fiscal (CAE)...",
+        "Firmando digitalmente el PDF...",
+    ];
+
+    return (
+        <div className="flex flex-col items-center justify-center h-full w-full max-w-lg mx-auto">
+            {/* Animated Sphere Loader */}
+            <div className="relative mb-12">
+                <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                    className="h-24 w-24 rounded-full border-[3px] border-slate-100 border-t-emerald-500 border-r-emerald-500"
+                />
+                <motion.div
+                    animate={{ rotate: -180 }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                    className="absolute inset-2 rounded-full border-[3px] border-slate-100 border-b-emerald-400 border-l-emerald-400 opacity-60"
+                />
+                <div className="absolute inset-0 flex items-center justify-center flex-col">
+                    <span className="text-2xl font-bold text-emerald-600 tabular-nums">
+                        {Math.round(((currentStep + 1) / steps.length) * 100)}%
+                    </span>
+                </div>
+            </div>
+
+            {/* Steps Container */}
+            <div className="w-full space-y-4 px-4 relative">
+                {/* Progress Bar Background */}
+                <div className="absolute left-6 top-2 bottom-2 w-0.5 bg-slate-100 rounded-full" />
+
+                {/* Progress Line */}
+                <motion.div
+                    className="absolute left-6 top-2 w-0.5 bg-emerald-500 rounded-full origin-top"
+                    initial={{ height: 0 }}
+                    animate={{ height: `${(currentStep / (steps.length - 1)) * 100}%` }}
+                    transition={{ duration: 0.5, ease: "easeInOut" }}
+                />
+
+                {steps.map((step, idx) => {
+                    const isActive = idx === currentStep;
+                    const isCompleted = idx < currentStep;
+
+                    return (
+                        <motion.div
+                            key={idx}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{
+                                opacity: isActive || isCompleted ? 1 : 0.4,
+                                x: 0,
+                                scale: isActive ? 1.02 : 1
+                            }}
+                            className={`relative flex items-center gap-4 text-base transition-colors duration-300 pl-2 ${isActive ? 'text-emerald-800 font-semibold' : 'text-slate-500'}`}
+                        >
+                            <motion.div
+                                animate={{
+                                    scale: isActive ? [1, 1.2, 1] : 1,
+                                    backgroundColor: isCompleted || isActive ? '#10b981' : '#e2e8f0',
+                                    borderColor: isActive ? '#d1fae5' : 'transparent'
+                                }}
+                                transition={{ duration: 0.5 }}
+                                className={`z-10 h-4 w-4 rounded-full border-2 shadow-sm shrink-0 ${isActive ? 'ring-4 ring-emerald-500/20' : ''}`}
+                            />
+
+                            <span className="truncate">{step}</span>
+
+                            {isCompleted && (
+                                <motion.div
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    className="ml-auto"
+                                >
+                                    <Check className="h-5 w-5 text-emerald-500" />
+                                </motion.div>
+                            )}
+                        </motion.div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+const SuccessScreen = ({ invoice, onClose, onDownload, emailSent }) => {
+    return (
+        <div className="flex flex-col items-center justify-center h-full py-8 text-center w-full max-w-2xl mx-auto">
+            <motion.div
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{
+                    type: "spring",
+                    stiffness: 260,
+                    damping: 20,
+                    delay: 0.1
+                }}
+                className="h-28 w-28 bg-emerald-100/80 rounded-full flex items-center justify-center mb-8 shadow-inner ring-8 ring-emerald-50/50 backdrop-blur-sm"
+            >
+                <CheckCircle2 className="h-14 w-14 text-emerald-600" />
+            </motion.div>
+
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.5 }}
+                className="space-y-2 mb-10"
+            >
+                <h3 className="text-4xl font-bold text-slate-800 tracking-tight">¡Factura Emitida!</h3>
+                <p className="text-slate-500 text-lg max-w-md mx-auto leading-relaxed">
+                    {emailSent
+                        ? "El comprobante se ha generado y enviado por correo correctamente."
+                        : "El comprobante se ha generado correctamente."}
+                </p>
+            </motion.div>
+
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ delay: 0.5, type: "spring", stiffness: 100 }}
+                whileHover={{ scale: 1.02 }}
+                className="bg-white rounded-3xl p-8 w-full max-w-[500px] border border-slate-100 mb-10 grid grid-cols-2 gap-8 shadow-2xl shadow-emerald-900/5 relative overflow-hidden group"
+            >
+                {/* Decorative Background */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-[100px] -mr-10 -mt-10 opacity-50 group-hover:scale-110 transition-transform duration-700" />
+
+                <div className="text-left relative z-10">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Comprobante</p>
+                    <p className="font-mono text-slate-700 font-bold text-xl tracking-tight">
+                        {invoice?.invoice_number || invoice?.number || "0000-00000000"}
+                    </p>
+                </div>
+                <div className="text-right relative z-10">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Final</p>
+                    <p className="text-3xl font-bold text-emerald-600 tracking-tighter">
+                        {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(invoice?.total_amount || invoice?.amount || invoice?.total || 0)}
+                    </p>
+                </div>
+            </motion.div>
+
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7 }}
+                className="flex flex-col sm:flex-row gap-4 w-full max-w-[500px]"
+            >
+                <Button
+                    variant="outline"
+                    onClick={onClose}
+                    className="flex-1 h-12 text-base border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl"
+                >
+                    Cerrar
+                </Button>
+                <Button
+                    onClick={onDownload}
+                    className="flex-1 h-12 text-base bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 rounded-xl font-semibold transition-all hover:-translate-y-0.5"
+                >
+                    <Download className="h-5 w-5 mr-2" />
+                    Descargar PDF
+                </Button>
+            </motion.div>
+        </div>
+    );
+};
+
+const ErrorScreen = ({ error, onRetry, onCancel }) => {
+    return (
+        <div className="flex flex-col items-center justify-center h-full py-8 text-center animate-in fade-in zoom-in duration-300">
+            <div className="h-24 w-24 bg-rose-100 rounded-full flex items-center justify-center mb-6 shadow-sm ring-8 ring-rose-50/50">
+                <XCircle className="h-12 w-12 text-rose-600" />
+            </div>
+
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Error al Emitir</h3>
+            <p className="text-slate-500 max-w-md mx-auto mb-8 text-lg">
+                {error || "Hubo un problema al comunicarse con el servicio de facturación. Por favor intenta nuevamente."}
+            </p>
+
+            <div className="flex gap-4 w-full max-w-xs">
+                <Button variant="outline" onClick={onCancel} className="flex-1 h-11">
+                    Cancelar
+                </Button>
+                <Button onClick={onRetry} className="flex-1 h-11 bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-500/20">
+                    Reintentar
+                </Button>
+            </div>
+        </div>
+    );
+};
 
 // Formateador de moneda reutilizable
 const formatCurrency = (amount) => {
@@ -34,13 +221,23 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
     const [items, setItems] = useState([]);
     const [notifyClient, setNotifyClient] = useState(false);
 
-    // UI State
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+    // Flow State
+    const [status, setStatus] = useState('idle'); // idle, submitting, success, error
+    const [loadingStep, setLoadingStep] = useState(0);
+    const [createdInvoice, setCreatedInvoice] = useState(null);
+    const [errorMessage, setErrorMessage] = useState(null);
 
     // Initialize state
     useEffect(() => {
         if (open) {
+            // Reset flow state on open
+            if (status !== 'success') { // Don't reset if we are just looking at the success screen, but usually open=true resets
+                setStatus('idle');
+                setLoadingStep(0);
+                setErrorMessage(null);
+                setCreatedInvoice(null);
+            }
+
             if (initialData) {
                 setPeriod(initialData.period || new Date().toISOString().slice(0, 7));
                 setItems(initialData.items || []);
@@ -48,7 +245,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
             } else {
                 if (initialItems && initialItems.length > 0) {
                     const mappedItems = initialItems.map(svc => ({
-                        id: crypto.randomUUID(), // Mejor que Math.random()
+                        id: crypto.randomUUID(),
                         description: svc.name,
                         quantity: 1,
                         unit_price: Number(svc.price) || 0
@@ -60,32 +257,19 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                 setPeriod(new Date().toISOString().slice(0, 7));
                 setNotifyClient(false);
             }
-            setIsSubmitting(false);
-            setLoadingMsgIndex(0);
         }
     }, [open, initialItems, initialData, client]);
 
-    // Rotating Loading Messages
-    useEffect(() => {
-        let interval;
-        if (isSubmitting) {
-            interval = setInterval(() => {
-                setLoadingMsgIndex(prev => (prev + 1) % LOADING_MESSAGES.length);
-            }, 3500); // Un poco más lento para que se lea bien
-        }
-        return () => clearInterval(interval);
-    }, [isSubmitting]);
-
     // Handlers
     const handleItemChange = (index, field, value) => {
-        if (isSubmitting) return;
+        if (status === 'submitting') return;
         const newItems = [...items];
         newItems[index][field] = value;
         setItems(newItems);
     };
 
     const handleAddItem = () => {
-        if (isSubmitting) return;
+        if (status === 'submitting') return;
         setItems([
             ...items,
             { id: crypto.randomUUID(), description: "", quantity: 1, unit_price: 0 }
@@ -93,7 +277,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
     };
 
     const handleRemoveItem = (index) => {
-        if (isSubmitting) return;
+        if (status === 'submitting') return;
         if (items.length === 1 && !items[0].description) return;
         const newItems = [...items];
         newItems.splice(index, 1);
@@ -114,8 +298,16 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
             return;
         }
 
-        setIsSubmitting(true);
-        setLoadingMsgIndex(0);
+        setStatus('submitting');
+        setLoadingStep(0);
+
+        // Simulate progress steps
+        const stepInterval = setInterval(() => {
+            setLoadingStep(prev => {
+                if (prev < 4) return prev + 1;
+                return prev;
+            });
+        }, 1200); // Change step every 1.2s
 
         try {
             const payload = {
@@ -133,282 +325,323 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
 
             const response = await createInvoice(payload);
 
-            toast.success("Factura Emitida", {
-                description: `Comprobante generado correctamente para ${client?.company_name || 'el cliente'}.`,
-                icon: <CheckCircle2 className="h-5 w-5 text-green-600" />
-            });
+            clearInterval(stepInterval);
+            setLoadingStep(4); // Finish steps
 
-            if (onInvoiceCreated) onInvoiceCreated(response);
-            onOpenChange(false);
+            // Wait a small bit for the last step animation
+            setTimeout(() => {
+                const invoiceData = response.data || response;
+                setCreatedInvoice(invoiceData);
+                setStatus('success');
+                toast.success("Factura generada correctamente");
+                if (onInvoiceCreated) onInvoiceCreated(invoiceData);
+            }, 800);
 
         } catch (error) {
+            clearInterval(stepInterval);
             console.error("Error creating invoice", error);
-
-            // MANEJO INTELIGENTE DE TIMEOUTS (Por si el Vite Config falla)
-            const isTimeout = error.message?.includes('502') || error.message?.includes('504');
-
-            if (isTimeout) {
-                toast.warning("La respuesta demoró demasiado", {
-                    description: "Es posible que la factura se haya creado. Por favor revisa la lista antes de intentar de nuevo.",
-                    duration: 8000,
-                });
-                // Opcional: Cerrar el modal para forzar al usuario a revisar
-                // onOpenChange(false); 
-                // if (onInvoiceCreated) onInvoiceCreated(); 
-            } else {
-                toast.error("Error al emitir", {
-                    description: error.message || "La AFIP rechazó la operación o hubo un error de conexión."
-                });
-            }
-        } finally {
-            setIsSubmitting(false);
+            setErrorMessage(error.message || "Error desconocido al procesar la factura.");
+            setStatus('error');
         }
     };
 
-    return (
-        <Dialog open={open} onOpenChange={isSubmitting ? undefined : onOpenChange}>
-            <DialogContent className="sm:max-w-5xl md:max-w-6xl w-full max-h-[95vh] overflow-y-auto rounded-3xl p-0 gap-0 bg-slate-50">
+    const handleDownloadPDF = async () => {
+        if (!createdInvoice) return;
 
-                {/* Header Premium */}
-                <div className="bg-white px-6 py-5 border-b border-slate-100 flex items-start justify-between rounded-t-3xl">
-                    <div>
-                        <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-slate-800">
-                            <div className="p-2 bg-indigo-50 rounded-lg">
-                                <FileText className="h-5 w-5 text-indigo-600" />
-                            </div>
-                            Nueva Factura
-                        </DialogTitle>
-                        <p className="text-sm text-slate-500 mt-1 ml-11">
-                            El backend calculará impuestos y tipo de factura (A/B) automáticamente.
-                        </p>
-                    </div>
-                    {/* Badge de Cliente */}
-                    <div className="hidden md:block text-right">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Facturar a</p>
-                        <p className="font-semibold text-slate-900">{client?.company_name || "Consumidor Final"}</p>
-                        <p className="text-xs text-slate-500 font-mono">{client?.cuit || "Sin CUIT"}</p>
-                    </div>
+        const promise = async () => {
+            try {
+                // Try backend first
+                // FIX: Use invoice_id from the response, fallback to id if not present
+                const invoiceId = createdInvoice.invoice_id || createdInvoice.id;
+
+                if (!invoiceId) throw new Error("ID de factura no encontrado");
+
+                const blob = await invoiceAPI.getPdf(invoiceId);
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `factura-${client.company_name?.replace(/\s+/g, '_') || 'cliente'}-${createdInvoice.number}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                // Fallback to client-side generation
+                const blob = await pdf(
+                    <InvoicePDF
+                        client={client}
+                        items={createdInvoice.items || items}
+                        invoiceNumber={createdInvoice.number}
+                        issueDate={createdInvoice.issueDate}
+                        dueDate={createdInvoice.dueDate}
+                        invoiceType={createdInvoice.invoiceType}
+                    />
+                ).toBlob();
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `factura-${createdInvoice.number}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+        };
+
+        toast.promise(promise(), {
+            loading: 'Descargando...',
+            success: 'Descarga iniciada',
+            error: 'No se pudo descargar el PDF'
+        });
+    };
+
+    const FormContent = () => (
+        <div className="flex flex-col h-full">
+            {/* Header Premium */}
+            <div className="bg-white px-8 py-6 border-b border-slate-100 flex items-start justify-between z-20 shrink-0">
+                <div>
+                    <DialogTitle className="flex items-center gap-3 text-2xl font-bold text-slate-800">
+                        <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 shadow-sm shadow-emerald-100">
+                            <FileText className="h-6 w-6" />
+                        </div>
+                        Nueva Factura
+                    </DialogTitle>
+                    <p className="text-sm text-slate-500 mt-1 ml-[3.25rem]">
+                        El backend calculará impuestos y comprobante automáticamente.
+                    </p>
                 </div>
+                {/* Badge de Cliente */}
+                {client && (
+                    <div className="hidden md:block text-right bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Cliente</p>
+                        <p className="font-bold text-slate-800 text-sm">{client?.company_name || client?.businessName}</p>
+                        <p className="text-xs text-slate-500 font-mono">{client?.cuit || "Consumidor Final"}</p>
+                    </div>
+                )}
+            </div>
 
-                <div className="p-6 space-y-8">
-                    {/* Grid de Configuración */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                        {/* Columna Izquierda: Periodo y Opciones */}
-                        <div className="md:col-span-4 space-y-5">
-                            <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
-                                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 block">Configuración</Label>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-0 h-full">
+                    {/* Columna Izquierda: Configuración */}
+                    <div className="md:col-span-4 bg-slate-50/50 border-r border-slate-100 p-6 flex flex-col gap-6 overflow-y-auto">
 
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-slate-700">Periodo de Servicio</Label>
-                                        <div className="relative group">
-                                            <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                            <Input
-                                                type="month"
-                                                value={period}
-                                                onChange={(e) => setPeriod(e.target.value)}
-                                                className="pl-9 bg-slate-50 border-slate-200 focus:bg-white transition-all"
-                                                readOnly={readOnly || isSubmitting}
-                                                disabled={isSubmitting}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 block">Configuración General</Label>
+
+                            <div className="space-y-5">
+                                <div className="space-y-2">
+                                    <Label className="text-slate-700 font-medium">Periodo de Facturación</Label>
+                                    <div className="relative group">
+                                        <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                        <Input
+                                            type="month"
+                                            value={period}
+                                            onChange={(e) => setPeriod(e.target.value)}
+                                            className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all rounded-xl"
+                                            readOnly={readOnly}
+                                        />
+                                    </div>
+                                </div>
+
+                                {!readOnly && (
+                                    <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-emerald-50/50 border-emerald-200 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                        <div className="flex items-center h-5 mt-0.5">
+                                            <input
+                                                type="checkbox"
+                                                checked={notifyClient}
+                                                onChange={(e) => setNotifyClient(e.target.checked)}
+                                                className="h-5 w-5 rounded-md border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                                             />
                                         </div>
-                                    </div>
-
-                                    {!readOnly && (
-                                        <div className={`flex items-start gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50/50 transition-all ${notifyClient ? 'bg-indigo-50/50 border-indigo-100' : ''}`}>
-                                            <div className="flex items-center h-5">
-                                                <input
-                                                    type="checkbox"
-                                                    id="notify-client"
-                                                    checked={notifyClient}
-                                                    onChange={(e) => setNotifyClient(e.target.checked)}
-                                                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                                    disabled={isSubmitting}
-                                                />
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <Label htmlFor="notify-client" className="font-medium text-slate-700 cursor-pointer text-sm">
-                                                    Enviar por Email
-                                                </Label>
-                                                <span className="text-xs text-slate-500">
-                                                    Se enviará el PDF adjunto al cliente.
-                                                </span>
-                                            </div>
+                                        <div className="flex flex-col">
+                                            <span className={`font-semibold text-sm ${notifyClient ? 'text-emerald-800' : 'text-slate-700'}`}>
+                                                Enviar por Email
+                                            </span>
+                                            <span className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                                Si activas esto, el cliente recibirá el PDF automáticamente.
+                                            </span>
                                         </div>
-                                    )}
-                                </div>
+                                    </label>
+                                )}
                             </div>
                         </div>
 
-                        {/* Columna Derecha: Tabla de Items */}
-                        <div className="md:col-span-8">
-                            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col h-full">
-                                <div className="p-4 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center">
-                                    <h3 className="text-sm font-semibold text-slate-700">Detalle de Conceptos</h3>
-                                    {!readOnly && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={handleAddItem}
-                                            disabled={isSubmitting}
-                                            className="h-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3"
-                                        >
-                                            <Plus className="h-3.5 w-3.5 mr-1.5" /> Agregar Item
-                                        </Button>
-                                    )}
-                                </div>
-
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="bg-slate-50 text-slate-500 font-medium text-xs uppercase tracking-wider">
-                                            <tr>
-                                                <th className="px-4 py-3 w-[45%]">Descripción</th>
-                                                <th className="px-4 py-3 w-[15%] text-center">Cant.</th>
-                                                <th className="px-4 py-3 w-[20%] text-right">Precio Unit.</th>
-                                                <th className="px-4 py-3 w-[15%] text-right">Subtotal</th>
-                                                {!readOnly && <th className="px-2 py-3 w-[5%]"></th>}
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {items.map((item, idx) => (
-                                                <tr key={item.id} className="group hover:bg-slate-50/80 transition-colors">
-                                                    <td className="p-2 pl-4">
-                                                        <Input
-                                                            value={item.description}
-                                                            onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
-                                                            placeholder="Ej: Abono Internet..."
-                                                            className="border-transparent bg-transparent shadow-none px-0 h-auto py-1 focus:ring-0 placeholder:text-slate-300 font-medium text-slate-700"
-                                                            readOnly={readOnly || isSubmitting}
-                                                            disabled={isSubmitting}
-                                                        />
-                                                    </td>
-                                                    <td className="p-2">
-                                                        <Input
-                                                            type="number"
-                                                            value={item.quantity}
-                                                            onChange={(e) => handleItemChange(idx, 'quantity', Number(e.target.value))}
-                                                            onFocus={(e) => e.target.select()} // UX: Seleccionar todo al clickear
-                                                            className="text-center border-transparent bg-slate-100/50 hover:bg-white focus:bg-white h-8 shadow-none"
-                                                            readOnly={readOnly || isSubmitting}
-                                                            disabled={isSubmitting}
-                                                            min="1"
-                                                        />
-                                                    </td>
-                                                    <td className="p-2">
-                                                        <div className="relative">
-                                                            <span className="absolute left-2 top-1.5 text-slate-400 text-xs">$</span>
-                                                            <Input
-                                                                type="number"
-                                                                value={item.unit_price}
-                                                                onChange={(e) => handleItemChange(idx, 'unit_price', Number(e.target.value))}
-                                                                onFocus={(e) => e.target.select()} // UX: Seleccionar todo al clickear
-                                                                className="text-right pl-5 border-transparent bg-slate-100/50 hover:bg-white focus:bg-white h-8 shadow-none"
-                                                                readOnly={readOnly || isSubmitting}
-                                                                disabled={isSubmitting}
-                                                                step="0.01"
-                                                            />
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-2 pr-4 text-right font-semibold text-slate-700 tabular-nums">
-                                                        {formatCurrency(item.quantity * item.unit_price)}
-                                                    </td>
-                                                    {!readOnly && (
-                                                        <td className="p-2 text-center">
-                                                            <button
-                                                                onClick={() => handleRemoveItem(idx)}
-                                                                disabled={isSubmitting}
-                                                                className="text-slate-300 hover:text-rose-500 p-1.5 rounded-md hover:bg-rose-50 transition-all"
-                                                                tabIndex={-1}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </button>
-                                                        </td>
-                                                    )}
-                                                </tr>
-                                            ))}
-                                            {items.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={5} className="py-8 text-center text-slate-400 italic">
-                                                        Agrega items para comenzar la factura
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Footer de Totales */}
-                                <div className="mt-auto bg-slate-50 border-t border-slate-200 p-4 flex justify-between items-center">
-                                    <div className="text-xs text-slate-500 max-w-[200px] leading-tight">
-                                        <AlertCircle className="h-3 w-3 inline mr-1 text-slate-400" />
-                                        Precios finales (IVA incluido).
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Total a Facturar</p>
-                                        <p className="text-2xl font-bold text-slate-900 tabular-nums tracking-tight">
-                                            {formatCurrency(total)}
-                                        </p>
-                                    </div>
-                                </div>
+                        <div className="bg-slate-900 text-slate-50 p-6 rounded-2xl shadow-xl shadow-slate-900/10 mt-auto relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <DollarSign className="w-24 h-24 -mr-8 -mt-8" />
                             </div>
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Total Estimado</p>
+                            <p className="text-4xl font-bold tracking-tight text-emerald-400 truncate">{formatCurrency(total)}</p>
+                            <p className="text-slate-500 text-xs mt-3 flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                IVA incluido en precios finales
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Columna Derecha: Items */}
+                    <div className="md:col-span-8 bg-white flex flex-col h-full overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white z-10">
+                            <h3 className="text-base font-bold text-slate-800">Conceptos a Facturar</h3>
+                            {!readOnly && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleAddItem}
+                                    className="h-9 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-4 rounded-lg font-medium transition-colors"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" /> Agregar Item
+                                </Button>
+                            )}
+                        </div>
+
+                        <div className="overflow-y-auto flex-1 p-0">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-500 font-bold text-xs uppercase tracking-wider sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th className="px-6 py-4 w-[45%]">Descripción</th>
+                                        <th className="px-4 py-4 w-[15%] text-center">Cant.</th>
+                                        <th className="px-4 py-4 w-[20%] text-right">Precio Unit.</th>
+                                        <th className="px-6 py-4 w-[15%] text-right">Subtotal</th>
+                                        {!readOnly && <th className="px-2 py-4 w-[5%]"></th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {items.map((item, idx) => (
+                                        <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
+                                            <td className="p-3 pl-6">
+                                                <Input
+                                                    value={item.description}
+                                                    onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                                                    placeholder="Descripción del servicio..."
+                                                    className="border-transparent bg-transparent shadow-none px-0 h-auto py-2 focus:ring-0 placeholder:text-slate-300 font-medium text-slate-700 text-base"
+                                                    readOnly={readOnly}
+                                                />
+                                            </td>
+                                            <td className="p-3">
+                                                <Input
+                                                    type="number"
+                                                    value={item.quantity}
+                                                    onChange={(e) => handleItemChange(idx, 'quantity', Number(e.target.value))}
+                                                    onFocus={(e) => e.target.select()}
+                                                    className="text-center border-slate-100 bg-slate-50 hover:bg-white focus:bg-white h-9 shadow-sm rounded-lg"
+                                                    readOnly={readOnly}
+                                                    min="1"
+                                                />
+                                            </td>
+                                            <td className="p-3">
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
+                                                    <Input
+                                                        type="number"
+                                                        value={item.unit_price}
+                                                        onChange={(e) => handleItemChange(idx, 'unit_price', Number(e.target.value))}
+                                                        onFocus={(e) => e.target.select()}
+                                                        className="text-right pl-6 border-slate-100 bg-slate-50 hover:bg-white focus:bg-white h-9 shadow-sm rounded-lg"
+                                                        readOnly={readOnly}
+                                                        step="0.01"
+                                                    />
+                                                </div>
+                                            </td>
+                                            <td className="p-3 pr-6 text-right font-bold text-slate-700 tabular-nums text-base">
+                                                {formatCurrency(Number(item.quantity) * Number(item.unit_price))}
+                                            </td>
+                                            {!readOnly && (
+                                                <td className="p-3 text-center">
+                                                    <button
+                                                        onClick={() => handleRemoveItem(idx)}
+                                                        className="text-slate-300 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"
+                                                        tabIndex={-1}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                    {items.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="py-20 text-center text-slate-400">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="p-3 bg-slate-100 rounded-full">
+                                                        <Plus className="h-6 w-6 text-slate-300" />
+                                                    </div>
+                                                    <p>Agrega items para comenzar la factura</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <DialogFooter className="bg-white p-4 border-t border-slate-100">
-                    <AnimatePresence mode="wait">
-                        {isSubmitting ? (
-                            <motion.div
-                                key="loading"
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                className="w-full flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
-                                    <div className="flex flex-col">
-                                        <span className="text-indigo-900 font-semibold text-sm">Procesando Factura</span>
-                                        <motion.span
-                                            key={loadingMsgIndex}
-                                            initial={{ opacity: 0, y: 5 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -5 }}
-                                            className="text-xs text-indigo-600/80"
-                                        >
-                                            {LOADING_MESSAGES[loadingMsgIndex]}
-                                        </motion.span>
-                                    </div>
-                                </div>
-                                <div className="text-xs font-mono text-indigo-400">
-                                    NO CIERRES ESTA VENTANA
-                                </div>
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key="actions"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="flex w-full justify-end gap-3"
-                            >
-                                <Button
-                                    variant="outline"
-                                    onClick={() => onOpenChange(false)}
-                                    className="border-slate-200 hover:bg-slate-50 text-slate-600"
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    onClick={handleSubmit}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20 px-6"
-                                >
-                                    {notifyClient ? <Send className="h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-                                    {readOnly ? 'Cerrar' : 'Emitir Factura'}
-                                </Button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </DialogFooter>
+            {/* Footer */}
+            <DialogFooter className="bg-white p-4 border-t border-slate-100 shrink-0 z-20 gap-3">
+                <Button
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
+                    className="h-11 px-6 border-slate-200 hover:bg-slate-50 text-slate-600 font-medium rounded-xl"
+                >
+                    Cancelar
+                </Button>
+                <Button
+                    onClick={handleSubmit}
+                    className="h-11 px-8 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/30 rounded-xl font-semibold transition-all hover:scale-[1.02]"
+                >
+                    {notifyClient ? <Send className="h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                    {readOnly ? 'Cerrar' : 'Emitir Factura'}
+                </Button>
+            </DialogFooter>
+        </div>
+    );
+
+    return (
+        <Dialog open={open} onOpenChange={status === 'submitting' ? undefined : onOpenChange}>
+            {/* Agregamos una altura fija: h-[85vh] o similar */}
+            <DialogContent className="sm:max-w-6xl w-[95vw] h-[85vh] p-0 gap-0 bg-white rounded-3xl overflow-hidden shadow-2xl border-0 ring-1 ring-slate-900/5">
+                <AnimatePresence mode="wait">
+                    {status === 'idle' ? (
+                        <motion.div
+                            key="form"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="h-full w-full"
+                        >
+                            <FormContent />
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="status-screen"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.3 }}
+                            className="h-full w-full p-10 flex flex-col items-center justify-center bg-slate-50/50"
+                        >
+                            {status === 'submitting' && <LoadingSteps currentStep={loadingStep} />}
+                            {status === 'success' && (
+                                <SuccessScreen
+                                    invoice={createdInvoice}
+                                    emailSent={notifyClient}
+                                    onClose={() => onOpenChange(false)}
+                                    onDownload={handleDownloadPDF}
+                                />
+                            )}
+                            {status === 'error' && (
+                                <ErrorScreen
+                                    error={errorMessage}
+                                    onRetry={handleSubmit}
+                                    onCancel={() => setStatus('idle')}
+                                />
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </DialogContent>
         </Dialog>
     );

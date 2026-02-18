@@ -23,7 +23,7 @@ const inferIcon = (name) => {
     return 'Zap';
 };
 
-export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
+export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }) {
     // State is now polymorphic:
     // Item = {
     //    type: 'single' | 'combo',
@@ -62,8 +62,8 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
 
     // Hydrate State on Open
     useEffect(() => {
-        if (isOpen && client?.activeServices) {
-            const rawServices = client.activeServices;
+        if (isOpen) {
+            const rawServices = services || client?.activeServices || [];
             const newBudgetItems = [];
 
             // Group by origin_plan_id
@@ -133,11 +133,14 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
             const loadData = async () => {
                 try {
                     const [catRes, comboRes] = await Promise.all([
-                        catalogAPI.getAll({ limit: 100, is_custom: 'false' }),
+                        catalogAPI.getAll({ limit: 100 }), // Limit reduced to 100 (Backend max)
                         combosAPI.getAll()
                     ]);
 
-                    const catalogData = catRes.data || [];
+                    // Filter out custom items strictly
+                    const rawCatalog = catRes.data || [];
+                    const catalogData = rawCatalog.filter(item => !item.is_custom);
+
                     const packagesData = comboRes.data || [];
 
                     setCatalog(catalogData);
@@ -152,8 +155,6 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
                                     return {
                                         ...item,
                                         name: matchedPkg.name,
-                                        // Optional: Update price if we want to sync with current catalog, 
-                                        // but for existing services we usually keep the instance price.
                                     };
                                 }
                             }
@@ -167,7 +168,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, onSave }) {
             };
             loadData();
         }
-    }, [isOpen, client]);
+    }, [isOpen, client, services]);
 
     // Filter available items
     const availableServices = catalog.filter(s =>
