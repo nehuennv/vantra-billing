@@ -359,11 +359,14 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
 
                 if (!invoiceId) throw new Error("ID de factura no encontrado");
 
-                const blob = await invoiceAPI.getPdf(invoiceId);
+                const response = await invoiceAPI.getPdf(invoiceId);
+                const { blob, filename } = response;
+
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `factura-${client.company_name?.replace(/\s+/g, '_') || 'cliente'}-${createdInvoice.number}.pdf`;
+                // Use backend filename, or fallback if missing (though apiClient provides a fallback)
+                link.download = filename || `factura-${client.company_name?.replace(/\s+/g, '_') || 'cliente'}-${createdInvoice.number}.pdf`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);

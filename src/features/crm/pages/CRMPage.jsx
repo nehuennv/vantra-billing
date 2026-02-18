@@ -158,13 +158,12 @@ export default function CRMPage() {
 
         // API Call
         try {
-            // WORKAROUND: Send FULL payload to prevent data loss
-            const apiBody = adaptClientForApi(client);
-
-            // Override status fields
-            apiBody.status = newStatus;
-            apiBody.categoria = newStatus;
-            apiBody.internal_code = newStatus;
+            // Send only status fields
+            const apiBody = {
+                status: newStatus,
+                categoria: newStatus,
+                internal_code: newStatus
+            };
 
             await clientAPI.update(taskId, apiBody);
 

@@ -169,11 +169,13 @@ export default function BillingPage() {
 
                 if (!invoiceId) throw new Error("ID de factura no encontrado");
 
-                const blob = await invoiceAPI.getPdf(invoiceId);
+                const response = await invoiceAPI.getPdf(invoiceId);
+                const { blob, filename } = response;
+
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `factura-${selectedClient.company_name?.replace(/\s+/g, '_') || 'cliente'}-${createdInvoice.invoice_number || createdInvoice.number}.pdf`;
+                link.download = filename || `factura-${selectedClient.company_name?.replace(/\s+/g, '_') || 'cliente'}-${createdInvoice.invoice_number || createdInvoice.number}.pdf`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);

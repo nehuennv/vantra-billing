@@ -168,7 +168,24 @@ export const invoiceAPI = {
                 console.error("[DEBUG] PDF Error Body:", text);
                 throw new Error(`Failed to download PDF (${response.status})`);
             }
-            return await response.blob();
+
+            // Extract filename from Content-Disposition header
+            const disposition = response.headers.get('Content-Disposition');
+            let filename = `factura-${id}.pdf`; // Default fallback
+
+            if (disposition && disposition.indexOf('attachment') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) {
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            console.log("[DEBUG] Extracted Filename:", filename);
+
+            const blob = await response.blob();
+            return { blob, filename };
+
         } catch (error) {
             console.error("[DEBUG] PDF Fetch Error:", error);
             throw error;

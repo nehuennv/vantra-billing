@@ -350,17 +350,17 @@ export default function ClientDetailPage() {
         const promise = async () => {
             try {
                 // 1. Intentar descarga desde el Backend (Blob real)
-                const blob = await invoiceAPI.getPdf(invoiceData.id);
+                const response = await invoiceAPI.getPdf(invoiceData.id);
+                const { blob, filename } = response;
 
                 // Crear URL del Blob y descargar
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `factura-${client.company_name?.replace(/\s+/g, '_') || 'cliente'}-${invoiceData.number}.pdf`;
+                link.download = filename || `factura-${client.company_name?.replace(/\s+/g, '_') || 'cliente'}-${invoiceData.number}.pdf`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                URL.revokeObjectURL(url);
                 URL.revokeObjectURL(url);
             } catch (err) {
                 console.error("Fallo descarga backend:", err);
