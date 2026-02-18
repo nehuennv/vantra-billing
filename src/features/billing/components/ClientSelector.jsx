@@ -43,8 +43,8 @@ export function ClientSelector({ onSelect, selectedClientId }) {
     }
 
     return (
-        <div className="space-y-4">
-            <div className="relative">
+        <div className="space-y-4 h-full flex flex-col">
+            <div className="relative shrink-0">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
                     placeholder="Buscar por nombre, empresa o CUIT..."
@@ -55,7 +55,7 @@ export function ClientSelector({ onSelect, selectedClientId }) {
                 />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 overflow-y-auto pr-2 custom-scrollbar flex-1 min-h-0">
                 {filteredClients.length === 0 ? (
                     <div className="col-span-full text-center py-8 text-slate-400">
                         No se encontraron clientes
@@ -75,7 +75,7 @@ export function ClientSelector({ onSelect, selectedClientId }) {
                                 )}
                             >
                                 <div className="flex items-start justify-between">
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
                                         <div className={cn(
                                             "h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold transition-colors shrink-0",
                                             isSelected ? "bg-primary text-white" : "bg-white text-slate-500 border border-slate-100 group-hover:border-primary/20 group-hover:text-primary"

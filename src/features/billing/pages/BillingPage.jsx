@@ -278,7 +278,7 @@ export default function BillingPage() {
 
                 {/* Main Wizard Content */}
                 <Card className="h-[750px] flex flex-col shadow-2xl shadow-slate-200/50 border-slate-100 overflow-hidden relative bg-white/90 backdrop-blur-xl ring-1 ring-slate-900/5">
-                    <CardContent className="flex-1 overflow-y-auto p-8 md:p-12 custom-scrollbar">
+                    <CardContent className="flex-1 overflow-hidden p-8 md:p-12 relative">
                         {status !== 'idle' ? (
                             <motion.div
                                 key="feedback"
@@ -321,28 +321,65 @@ export default function BillingPage() {
                                     animate="center"
                                     exit="exit"
                                     transition={{ duration: 0.3, ease: "circOut" }}
-                                    className="min-h-full"
+                                    className="h-full flex flex-col"
                                 >
                                     {/* STEP 1: CLIENT & PERIOD */}
                                     {currentStep === 1 && (
-                                        <div className="space-y-8">
-                                            <div>
-                                                <h2 className="text-2xl font-bold text-slate-800 mb-6">Selecciona el Cliente</h2>
-                                                <ClientSelector
-                                                    selectedClientId={selectedClient?.id}
-                                                    onSelect={setSelectedClient}
-                                                />
-                                            </div>
-
-                                            <AnimatePresence>
-                                                {selectedClient && (
+                                        <div className="h-full flex flex-col">
+                                            <AnimatePresence mode="wait">
+                                                {!selectedClient ? (
                                                     <motion.div
-                                                        initial={{ opacity: 0, height: 0 }}
-                                                        animate={{ opacity: 1, height: "auto" }}
-                                                        exit={{ opacity: 0, height: 0 }}
-                                                        className="overflow-hidden"
+                                                        key="client-selector"
+                                                        initial={{ opacity: 0, x: -20 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        exit={{ opacity: 0, x: -20 }}
+                                                        transition={{ duration: 0.3 }}
+                                                        className="h-full flex flex-col"
                                                     >
-                                                        <div className="mt-8 pt-8 border-t border-slate-200/60">
+                                                        <h2 className="text-2xl font-bold text-slate-800 mb-6 flex-shrink-0">Selecciona el Cliente</h2>
+                                                        <div className="flex-1 min-h-0">
+                                                            <ClientSelector
+                                                                selectedClientId={selectedClient?.id}
+                                                                onSelect={setSelectedClient}
+                                                            />
+                                                        </div>
+                                                    </motion.div>
+                                                ) : (
+                                                    <motion.div
+                                                        key="client-selected"
+                                                        initial={{ opacity: 0, x: 20 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        exit={{ opacity: 0, x: 20 }}
+                                                        transition={{ duration: 0.3 }}
+                                                        className="h-full overflow-y-auto custom-scrollbar pr-2 space-y-8"
+                                                    >
+                                                        {/* Selected Client Card */}
+                                                        <div>
+                                                            <div className="flex items-center justify-between mb-6">
+                                                                <h2 className="text-2xl font-bold text-slate-800">Cliente Seleccionado</h2>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    onClick={() => setSelectedClient(null)}
+                                                                    className="text-primary hover:text-primary/80 hover:bg-primary/5"
+                                                                >
+                                                                    Cambiar Cliente
+                                                                </Button>
+                                                            </div>
+
+                                                            <div className="bg-white p-6 rounded-2xl border border-primary/20 shadow-lg shadow-primary/5 ring-1 ring-primary/10 flex items-center justify-between">
+                                                                <div>
+                                                                    <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Cliente</p>
+                                                                    <h3 className="text-xl font-bold text-slate-900">{selectedClient.company_name}</h3>
+                                                                    <p className="text-sm text-slate-500 font-mono">{selectedClient.tax_id}</p>
+                                                                </div>
+                                                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                                                    <CheckCircle2 className="h-6 w-6" />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Period Picker - Shows immediately */}
+                                                        <div className="pt-4 border-t border-slate-100">
                                                             <div className="max-w-md">
                                                                 <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                                                                     <Calendar className="h-5 w-5 text-slate-400" />
@@ -353,7 +390,7 @@ export default function BillingPage() {
                                                                     <MonthYearPicker
                                                                         value={period}
                                                                         onChange={setPeriod}
-                                                                        className="h-14 "
+                                                                        className="h-14"
                                                                     />
                                                                 </div>
                                                             </div>
@@ -366,7 +403,7 @@ export default function BillingPage() {
 
                                     {/* STEP 2: ITEMS */}
                                     {currentStep === 2 && (
-                                        <div className="space-y-6">
+                                        <div className="h-full overflow-y-auto custom-scrollbar pr-2 space-y-6">
                                             <div className="flex items-center justify-between mb-2">
                                                 <div>
                                                     <h2 className="text-2xl font-bold text-slate-800">Conceptos a Facturar</h2>
@@ -454,7 +491,7 @@ export default function BillingPage() {
 
                                     {/* STEP 3: REVIEW */}
                                     {currentStep === 3 && (
-                                        <div className="space-y-8 max-w-2xl mx-auto">
+                                        <div className="h-full overflow-y-auto custom-scrollbar pr-2 space-y-8 max-w-2xl mx-auto w-full">
                                             <div className="text-center mb-6">
                                                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
                                                     <FileText className="h-8 w-8" />
@@ -466,7 +503,7 @@ export default function BillingPage() {
                                             <div className="grid grid-cols-2 gap-6">
                                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                                                     <p className="text-xs font-bold text-slate-400 uppercase mb-2 tracking-wider">Cliente</p>
-                                                    <p className="font-bold text-slate-900 text-xl">{selectedClient?.company_name}</p>
+                                                    <p className="font-bold text-slate-900 text-xl truncate" title={selectedClient?.company_name}>{selectedClient?.company_name}</p>
                                                     <p className="text-sm text-slate-500 font-mono mt-1">{selectedClient?.tax_id}</p>
                                                 </div>
                                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">

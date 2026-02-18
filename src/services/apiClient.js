@@ -233,7 +233,7 @@ export const combosAPI = {
     },
 
     update: (id, data) => {
-        return request(`/v1/combos/${id}`, 'PATCH', data);
+        return request(`/v1/combos/${id}`, 'PUT', data);
     },
 
     delete: (id) => {

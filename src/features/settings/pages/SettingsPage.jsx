@@ -6,6 +6,7 @@ import { Button } from "../../../components/ui/Button";
 import { useSettings } from "../../../hooks/useSettings";
 import { useToast } from "../../../hooks/useToast";
 import { authAPI } from "../../../services/apiClient";
+import { fetchAllData, downloadFile, generateClientsCSV, generateInvoicesCSV, convertArrayToCSV } from "../utils/exportUtils";
 
 const Tabs = [
     { id: "profile", label: "Perfil", icon: User },
@@ -27,6 +28,59 @@ export default function SettingsPage() {
 
     // Password State
     const [passwordData, setPasswordData] = useState({ current: "", new: "", confirm: "" });
+    const [exportLoading, setExportLoading] = useState(false);
+
+    const handleExport = async (entity, format) => {
+        setExportLoading(true);
+        try {
+            // We always fetch fresh data to ensure backup is up-to-date
+            const data = await fetchAllData();
+            const dateStr = new Date().toISOString().split('T')[0];
+
+            let content = null;
+            let filename = `vantra_${entity}_${dateStr}`;
+            let mimeType = 'text/plain';
+
+            if (format === 'json') {
+                mimeType = 'application/json';
+                filename += '.json';
+
+                if (entity === 'full') {
+                    content = JSON.stringify(data, null, 2);
+                } else if (entity === 'clients') {
+                    content = JSON.stringify(data.clients, null, 2);
+                } else if (entity === 'invoices') {
+                    content = JSON.stringify(data.invoices, null, 2);
+                } else if (entity === 'catalog') {
+                    content = JSON.stringify({ catalog: data.catalog, combos: data.combos }, null, 2);
+                }
+            } else if (format === 'csv') {
+                mimeType = 'text/csv';
+                filename += '.csv';
+
+                if (entity === 'clients') {
+                    content = generateClientsCSV(data.clients);
+                } else if (entity === 'invoices') {
+                    content = generateInvoicesCSV(data.invoices);
+                }
+            }
+
+            if (content) {
+                downloadFile(content, filename, mimeType);
+                toast.success(`Exportación de ${entity} (${format}) completada`);
+            } else {
+                throw new Error("Formato o entidad no soportada");
+            }
+
+        } catch (error) {
+            console.error("Export failed:", error);
+            toast.error("Error al exportar datos", {
+                description: error.message
+            });
+        } finally {
+            setExportLoading(false);
+        }
+    };
 
     const handleSave = async (section) => {
         setLoading(true);
@@ -299,25 +353,127 @@ export default function SettingsPage() {
 
                             {activeTab === "data" && (
                                 <div className="space-y-6">
-                                    <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                                        <Download className="w-5 h-5 text-slate-400" />
-                                        Exportar Datos
-                                    </h3>
-
-                                    <p className="text-slate-500 mb-6">
-                                        Descarga una copia completa de tu base de datos (clientes, facturas y configuraciones) en formato JSON.
-                                        Este archivo puede servir como copia de seguridad.
-                                    </p>
-
-                                    <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                                    <div className="flex items-center justify-between">
                                         <div>
-                                            <h4 className="font-bold text-slate-900">Backup Completo</h4>
-                                            <p className="text-sm text-slate-500 mt-1">Incluye todos los registros actuales.</p>
+                                            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                                <Download className="w-5 h-5 text-slate-400" />
+                                                Gestión de Datos
+                                            </h3>
+                                            <p className="text-sm text-slate-500 mt-1">
+                                                Exporta tu información en diferentes formatos para respaldo o análisis.
+                                            </p>
                                         </div>
-                                        <Button onClick={exportData} variant="outline" className="gap-2">
-                                            <Download className="w-4 h-4" />
-                                            Descargar JSON
-                                        </Button>
+                                    </div>
+
+                                    <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+                                        {/* 1. Full Backup */}
+                                        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <Shield className="w-4 h-4 text-green-600" />
+                                                    <h4 className="font-semibold text-slate-900">Backup Completo de Sistema</h4>
+                                                </div>
+                                                <p className="text-sm text-slate-500">
+                                                    Todos los registros (Clientes, Facturas, Catálogo, Servicios). Ideal para restauración.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    onClick={() => handleExport('full', 'json')}
+                                                    size="sm"
+                                                    variant="default"
+                                                    className="gap-2"
+                                                    disabled={exportLoading}
+                                                >
+                                                    {exportLoading ? "..." : <><Download className="w-3 h-3" /> JSON Completo</>}
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* 2. Clients */}
+                                        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <User className="w-4 h-4 text-blue-600" />
+                                                    <h4 className="font-semibold text-slate-900">Clientes</h4>
+                                                </div>
+                                                <p className="text-sm text-slate-500">
+                                                    Base de datos de clientes y sus detalles de contacto.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    onClick={() => handleExport('clients', 'json')}
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={exportLoading}
+                                                >
+                                                    JSON
+                                                </Button>
+                                                <Button
+                                                    onClick={() => handleExport('clients', 'csv')}
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={exportLoading}
+                                                >
+                                                    CSV (Excel)
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* 3. Invoices */}
+                                        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <CreditCard className="w-4 h-4 text-purple-600" />
+                                                    <h4 className="font-semibold text-slate-900">Facturas</h4>
+                                                </div>
+                                                <p className="text-sm text-slate-500">
+                                                    Historial de facturación, montos y estados.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    onClick={() => handleExport('invoices', 'json')}
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={exportLoading}
+                                                >
+                                                    JSON
+                                                </Button>
+                                                <Button
+                                                    onClick={() => handleExport('invoices', 'csv')}
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={exportLoading}
+                                                >
+                                                    CSV (Excel)
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* 4. Catalog */}
+                                        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="w-4 h-4 rounded bg-orange-100 flex items-center justify-center text-orange-600 text-xs font-bold">C</div>
+                                                    <h4 className="font-semibold text-slate-900">Catálogo y Combos</h4>
+                                                </div>
+                                                <p className="text-sm text-slate-500">
+                                                    Lista de precios, productos y paquetes configurados.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    onClick={() => handleExport('catalog', 'json')}
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={exportLoading}
+                                                >
+                                                    JSON
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}

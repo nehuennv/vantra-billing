@@ -217,7 +217,9 @@ export default function ServicesPage() {
     // Save Combo
     const handleSaveCombo = async (formData) => {
         // formData: { id, name, items: [{ catalog_item_id, quantity }], price }
-        const payload = {
+
+        // Prepare base payload
+        let payload = {
             name: formData.name,
             items: formData.items,
             price: formData.price // Send price override (0 if automatic)
@@ -225,7 +227,15 @@ export default function ServicesPage() {
 
         const promise = async () => {
             if (formData.id) {
-                // Update
+                // Update: Merge with existing data to prevent data loss (PUT replaces resource)
+                const existingCombo = combos.find(c => c.id === formData.id);
+                if (existingCombo) {
+                    payload = {
+                        ...payload,
+                        is_active: existingCombo.isActive // Map camelCase back to snake_case if needed, but API usually expects is_active
+                    };
+                }
+
                 await combosAPI.update(formData.id, payload);
             } else {
                 // Create
