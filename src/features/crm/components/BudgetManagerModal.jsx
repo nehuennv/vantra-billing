@@ -692,7 +692,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                     <div className="w-1/2 p-4 flex flex-col bg-white">
                         <div className="flex justify-between items-center mb-4">
                             <h4 className="font-bold text-slate-700">Presupuesto Actual</h4>
-                            <div className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-sm font-bold border border-emerald-100">
+                            <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-bold border border-primary/20">
                                 Total: ${totalBudget.toLocaleString()}
                             </div>
                         </div>

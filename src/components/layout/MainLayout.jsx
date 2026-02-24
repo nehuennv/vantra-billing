@@ -1,7 +1,7 @@
 import { useOutlet, useLocation, Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { AnimatePresence, motion } from "framer-motion";
-import { clientConfig } from "../../config/client";
+import { clientConfig, getPrimaryColor } from "../../config/client";
 
 // Algoritmo simple para oscurecer un color HEX - YA NO SE USA
 // const darkenColor = (hex, percent) => { ... }
@@ -11,7 +11,7 @@ export function MainLayout() {
     const animatedOutlet = useOutlet();
 
     // Obtener color primario
-    const primaryColor = clientConfig.colors?.primary || "#059669";
+    const primaryColor = getPrimaryColor();
 
     return (
         <div

@@ -15,7 +15,7 @@ import { ComboItemCard } from "../components/ComboItemCard";
 
 // API
 import { catalogAPI, combosAPI, servicesAPI, request } from "../../../services/apiClient";
-import { clientConfig } from "../../../config/client";
+import { clientConfig, getPrimaryColor } from "../../../config/client";
 import { useToast } from '../../../hooks/useToast';
 import { useClientLookup } from '../../../hooks/useClientLookup';
 import { ServiceInstanceCard } from '../components/ServiceInstanceCard';
@@ -416,7 +416,7 @@ export default function ServicesPage() {
                         <motion.div
                             layoutId="activeTabUnderline"
                             className="absolute bottom-0 left-0 right-0 h-[2px]"
-                            style={{ backgroundColor: clientConfig.colors.primary }}
+                            style={{ backgroundColor: getPrimaryColor() }}
                             transition={{ type: "spring", stiffness: 300, damping: 30 }}
                         />
                     )}
@@ -433,7 +433,7 @@ export default function ServicesPage() {
                         <motion.div
                             layoutId="activeTabUnderline"
                             className="absolute bottom-0 left-0 right-0 h-[2px]"
-                            style={{ backgroundColor: clientConfig.colors.primary }}
+                            style={{ backgroundColor: getPrimaryColor() }}
                             transition={{ type: "spring", stiffness: 300, damping: 30 }}
                         />
                     )}

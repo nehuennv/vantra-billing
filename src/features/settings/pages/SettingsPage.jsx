@@ -1,16 +1,33 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageTransition } from "../../../components/common/PageTransition";
 import { motion, AnimatePresence } from "framer-motion";
-import { Save, User, CreditCard, Bell, Shield, Mail, Download, Lock } from "lucide-react";
+import { Save, User, CreditCard, Bell, Shield, Mail, Download, Lock, Palette, RotateCcw, Check } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { useSettings } from "../../../hooks/useSettings";
 import { useToast } from "../../../hooks/useToast";
 import { authAPI } from "../../../services/apiClient";
+import { clientConfig } from "../../../config/client";
 import { fetchAllData, downloadFile, generateClientsCSV, generateInvoicesCSV, convertArrayToCSV } from "../utils/exportUtils";
+
+const PRESET_COLORS = [
+    { hex: "#0ea4e9", name: "Sky" },
+    { hex: "#6366f1", name: "Indigo" },
+    { hex: "#8b5cf6", name: "Violet" },
+    { hex: "#ec4899", name: "Pink" },
+    { hex: "#f43f5e", name: "Rose" },
+    { hex: "#f97316", name: "Orange" },
+    { hex: "#eab308", name: "Yellow" },
+    { hex: "#22c55e", name: "Green" },
+    { hex: "#14b8a6", name: "Teal" },
+    { hex: "#059669", name: "Emerald" },
+    { hex: "#0284c7", name: "Blue" },
+    { hex: "#1e293b", name: "Slate" },
+];
 
 const Tabs = [
     { id: "profile", label: "Perfil", icon: User },
-    // { id: "company", label: "Empresa", icon: Building }, // Keeping simple for now as per request
+    { id: "appearance", label: "Apariencia", icon: Palette },
     { id: "billing", label: "Facturación", icon: CreditCard },
     { id: "notifications", label: "Notificaciones", icon: Bell },
     { id: "security", label: "Seguridad", icon: Shield },
@@ -18,7 +35,9 @@ const Tabs = [
 ];
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState("profile");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const activeTab = searchParams.get('tab') || 'profile';
+    const setActiveTab = (tab) => setSearchParams({ tab }, { replace: true });
     const { settings, updateSection, exportData } = useSettings();
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
@@ -194,18 +213,6 @@ export default function SettingsPage() {
                 })}
             </div>
 
-            {/* --- ACTION HEADER --- */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900">
-                        {Tabs.find(t => t.id === activeTab)?.label || 'Configuración'}
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                        Administra tus preferencias y cuenta.
-                    </p>
-                </div>
-            </div>
-
             {/* Main Content Area */}
             <div className="flex-1 min-w-0 max-w-4xl">
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8">
@@ -370,7 +377,7 @@ export default function SettingsPage() {
                                         <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <Shield className="w-4 h-4 text-green-600" />
+                                                    <Shield className="w-4 h-4 text-primary" />
                                                     <h4 className="font-semibold text-slate-900">Backup Completo de Sistema</h4>
                                                 </div>
                                                 <p className="text-sm text-slate-500">
@@ -519,6 +526,130 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
                             )}
+
+                            {activeTab === "appearance" && (() => {
+                                const savedColor = formData.appearance?.primaryColor || clientConfig.colors.primary;
+                                const selectedColor = formData.appearance?.primaryColor || clientConfig.colors.primary;
+                                const activeColor = (() => {
+                                    // What's actually applied right now (from localStorage or default)
+                                    try {
+                                        const stored = JSON.parse(localStorage.getItem('vantra_settings') || 'null');
+                                        return stored?.appearance?.primaryColor || clientConfig.colors.primary;
+                                    } catch { return clientConfig.colors.primary; }
+                                })();
+                                const hasChanges = selectedColor.toLowerCase() !== activeColor.toLowerCase();
+
+                                return (
+                                    <div className="space-y-8">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+                                                <Palette className="w-5 h-5 text-slate-400" />
+                                                Color Primario
+                                            </h3>
+                                            <p className="text-sm text-slate-500">
+                                                Elegí un color y presioná <strong>Aplicar</strong> para actualizar toda la interfaz.
+                                            </p>
+                                        </div>
+
+                                        {/* Preset Swatches */}
+                                        <div className="space-y-3">
+                                            <label className="text-sm font-medium text-slate-700">Colores Predefinidos</label>
+                                            <div className="flex flex-wrap gap-3">
+                                                {PRESET_COLORS.map((color) => {
+                                                    const isSelected = selectedColor.toLowerCase() === color.hex.toLowerCase();
+                                                    return (
+                                                        <button
+                                                            key={color.hex}
+                                                            onClick={() => {
+                                                                setFormData({ ...formData, appearance: { ...formData.appearance, primaryColor: color.hex } });
+                                                            }}
+                                                            className={`group relative w-10 h-10 rounded-xl transition-all duration-200 hover:scale-110 shadow-sm hover:shadow-md outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 ${isSelected ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:ring-2 hover:ring-offset-1 hover:ring-slate-300'
+                                                                }`}
+                                                            style={{ backgroundColor: color.hex }}
+                                                            title={color.name}
+                                                        >
+                                                            {isSelected && (
+                                                                <Check className="h-4 w-4 text-white absolute inset-0 m-auto drop-shadow-md" />
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Custom Color */}
+                                        <div className="space-y-3">
+                                            <label className="text-sm font-medium text-slate-700">Color Personalizado</label>
+                                            <div className="flex items-center gap-4">
+                                                {/* Native Color Picker */}
+                                                <input
+                                                    type="color"
+                                                    value={selectedColor}
+                                                    onChange={(e) => {
+                                                        setFormData({ ...formData, appearance: { ...formData.appearance, primaryColor: e.target.value } });
+                                                    }}
+                                                    className="w-12 h-12 rounded-xl cursor-pointer border-2 border-slate-200 hover:border-slate-300 transition-colors p-0.5 bg-white"
+                                                    title="Abrir selector de color"
+                                                />
+
+                                                {/* Hex Input */}
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-slate-400 text-sm font-mono font-bold">#</span>
+                                                    <input
+                                                        type="text"
+                                                        maxLength={6}
+                                                        value={selectedColor.replace('#', '').toUpperCase()}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.replace(/[^0-9a-fA-F]/g, '').substring(0, 6);
+                                                            setFormData({ ...formData, appearance: { ...formData.appearance, primaryColor: `#${val}` } });
+                                                        }}
+                                                        className="w-28 px-3 py-2.5 rounded-lg border border-slate-200 text-sm font-mono font-bold text-slate-700 uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50 focus:bg-white"
+                                                        placeholder="0EA4E9"
+                                                    />
+                                                </div>
+
+
+                                            </div>
+                                        </div>
+
+                                        {/* Apply + Reset */}
+                                        <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
+                                            <Button
+                                                disabled={!hasChanges}
+                                                className="gap-2 shadow-lg disabled:opacity-50"
+                                                onClick={() => {
+                                                    updateSection('appearance', { primaryColor: selectedColor });
+                                                    toast.success('Aplicando nuevo color...');
+                                                    setTimeout(() => window.location.reload(), 400);
+                                                }}
+                                            >
+                                                <Palette className="h-4 w-4" />
+                                                Aplicar Color
+                                            </Button>
+
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-slate-500 hover:text-slate-700 gap-2"
+                                                onClick={() => {
+                                                    updateSection('appearance', { primaryColor: null });
+                                                    toast.success('Restaurando color original...');
+                                                    setTimeout(() => window.location.reload(), 400);
+                                                }}
+                                            >
+                                                <RotateCcw className="h-3.5 w-3.5" />
+                                                Restaurar Original
+                                            </Button>
+
+                                            {hasChanges && (
+                                                <span className="text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full ml-2">
+                                                    Sin aplicar
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </motion.div>
                     </AnimatePresence>
                 </div>

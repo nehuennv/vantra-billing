@@ -16,6 +16,9 @@ const defaultSettings = {
         emailAlerts: true,
         paymentReminders: true,
         marketing: false,
+    },
+    appearance: {
+        primaryColor: null // null = use clientConfig default
     }
 };
 

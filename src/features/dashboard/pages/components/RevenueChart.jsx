@@ -53,7 +53,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                     <div className="h-px bg-slate-700 my-2" />
                     <div className="flex items-center justify-between gap-4">
                         <span className="text-xs font-bold text-slate-200">Cashflow Neto</span>
-                        <span className={`text-sm font-bold font-sans ${neto >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <span className={`text-sm font-bold font-sans ${neto >= 0 ? 'text-primary' : 'text-rose-400'}`}>
                             {neto > 0 ? '+' : ''}${new Intl.NumberFormat('es-AR').format(neto)}
                         </span>
                     </div>
@@ -93,7 +93,7 @@ export function RevenueChart({ loading, data }) {
                         Rendimiento Financiero
                     </CardTitle>
                     <div className="flex items-center gap-2 mt-1">
-                        <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                        <span className="flex h-2 w-2 rounded-full bg-primary"></span>
                         <p className="text-sm text-slate-500 font-medium">Ingresos vs Gastos (Tiempo Real)</p>
                     </div>
                 </div>

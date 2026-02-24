@@ -3,7 +3,7 @@ import { CheckCircle2, XCircle, AlertTriangle, Info, X, Loader2 } from "lucide-r
 import { useEffect } from "react";
 
 const icons = {
-    success: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
+    success: <CheckCircle2 className="w-5 h-5 text-primary" />,
     error: <XCircle className="w-5 h-5 text-red-500" />,
     warning: <AlertTriangle className="w-5 h-5 text-amber-500" />,
     info: <Info className="w-5 h-5 text-blue-500" />,
@@ -26,7 +26,7 @@ export function ToastNotification({ id, type, message, description, duration, ic
 
     // Visual styles based on type (Arc-like gradients)
     const variants = {
-        success: "bg-gradient-to-br from-white/95 to-emerald-50/90 border-emerald-200/50 shadow-[0_8px_30px_-4px_rgba(16,185,129,0.1)]",
+        success: "bg-gradient-to-br from-white/95 to-primary/10 border-primary/20 shadow-[0_8px_30px_-4px_rgba(16,185,129,0.1)]",
         error: "bg-gradient-to-br from-white/95 to-rose-50/90 border-rose-200/50 shadow-[0_8px_30px_-4px_rgba(244,63,94,0.1)]",
         warning: "bg-gradient-to-br from-white/95 to-amber-50/90 border-amber-200/50 shadow-[0_8px_30px_-4px_rgba(245,158,11,0.1)]",
         info: "bg-gradient-to-br from-white/95 to-blue-50/90 border-blue-200/50 shadow-[0_8px_30px_-4px_rgba(59,130,246,0.1)]",
@@ -79,7 +79,7 @@ export function ToastNotification({ id, type, message, description, duration, ic
         >
             <div className="flex-shrink-0 mt-0.5 relative">
                 {/* Glow effect capability behind icon */}
-                <div className={`absolute inset-0 blur-lg opacity-20 ${type === 'success' ? 'bg-emerald-500' :
+                <div className={`absolute inset-0 blur-lg opacity-20 ${type === 'success' ? 'bg-primary' :
                     type === 'error' ? 'bg-rose-500' :
                         type === 'warning' ? 'bg-amber-500' :
                             'bg-blue-500'

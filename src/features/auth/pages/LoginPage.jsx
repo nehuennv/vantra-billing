@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clientConfig } from '../../../config/client';
+import { clientConfig, getPrimaryColor } from '../../../config/client';
 import { useToast } from '../../../hooks/useToast';
 import { authAPI } from '../../../services/apiClient';
 import { Loader2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -26,7 +26,7 @@ const LoginPage = () => {
     const [showSplash, setShowSplash] = useState(false);
 
     // Color principal (Fallback a negro si no existe)
-    const primaryColor = clientConfig.colors?.primary || '#18181b';
+    const primaryColor = getPrimaryColor();
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -56,7 +56,7 @@ const LoginPage = () => {
 
                 toast.success('Sesión iniciada', {
                     description: `Bienvenido de nuevo a ${clientConfig.name}`,
-                    icon: <CheckCircle2 className="h-5 w-5 text-emerald-500" />,
+                    icon: <CheckCircle2 className="h-5 w-5 text-primary" />,
                 });
                 navigate('/crm');
             } else {

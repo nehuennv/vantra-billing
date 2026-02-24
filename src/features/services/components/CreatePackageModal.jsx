@@ -131,11 +131,11 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                         {/* Search Header */}
                         <div className="p-5 pb-4 sticky top-0 z-10 bg-[#F7F9FC]/95 backdrop-blur-sm">
                             <div className="relative group">
-                                <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+                                <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
                                 <input
                                     type="text"
                                     placeholder="Buscar servicios..."
-                                    className="w-full pl-10 pr-4 py-2 rounded-xl border-none ring-1 ring-slate-200 bg-white shadow-sm text-slate-700 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
+                                    className="w-full pl-10 pr-4 py-2 rounded-xl border-none ring-1 ring-slate-200 bg-white shadow-sm text-slate-700 focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-slate-400 text-sm font-medium"
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     autoFocus
                                 />
@@ -160,7 +160,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                                     >
                                         <div className="flex justify-between items-center mb-1">
                                             <h4 className="font-semibold text-slate-700 text-sm leading-tight group-hover:text-slate-900 transition-colors">{s.name}</h4>
-                                            <div className="h-5 w-5 rounded-md bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 group-hover:border-emerald-100 transition-all opacity-0 group-hover:opacity-100">
+                                            <div className="h-5 w-5 rounded-md bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/20 transition-all opacity-0 group-hover:opacity-100">
                                                 <Plus className="h-3 w-3" />
                                             </div>
                                         </div>
@@ -177,7 +177,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                         <div className="flex-1 overflow-visible p-8 flex flex-col max-w-3xl mx-auto w-full">
                             {/* Name Input */}
                             <div className="mb-8 group">
-                                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 block ml-1 group-focus-within:text-emerald-600 transition-colors">Nombre del Paquete</label>
+                                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 block ml-1 group-focus-within:text-primary transition-colors">Nombre del Paquete</label>
                                 <input
                                     type="text"
                                     placeholder="Ej: Plan Fibra + TV"
@@ -249,7 +249,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                                                 {isManualPrice ? 'Precio Promocional' : 'Precio Regular'}
                                             </span>
                                             {isManualPrice && (
-                                                <Info className="w-3 h-3 text-emerald-500" />
+                                                <Info className="w-3 h-3 text-primary" />
                                             )}
                                         </div>
 
@@ -258,7 +258,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                                                 <span className="text-lg font-bold text-slate-400">$</span>
                                                 <input
                                                     type="number"
-                                                    className="bg-transparent border-none p-0 text-lg font-bold w-24 focus:ring-0 text-emerald-600 placeholder-slate-300"
+                                                    className="bg-transparent border-none p-0 text-lg font-bold w-24 focus:ring-0 text-primary placeholder-slate-300"
                                                     value={formData.price === 0 ? '' : formData.price}
                                                     onChange={(e) => setFormData({ ...formData, price: e.target.value === '' ? 0 : Number(e.target.value) })}
                                                     autoFocus
@@ -283,7 +283,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                                                 setFormData(prev => ({ ...prev, price: servicesTotal }));
                                             }
                                         }}
-                                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all border ${isManualPrice ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'}`}
+                                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all border ${isManualPrice ? 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/15' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'}`}
                                     >
                                         {isManualPrice ? 'Usar Suma Automática' : 'Definir Precio Promo'}
                                     </button>
@@ -301,7 +301,7 @@ export function CreatePackageModal({ isOpen, onClose, onConfirm, catalogItems = 
                                     <Button
                                         onClick={handleSubmit}
                                         disabled={!formData.name || formData.items.length === 0}
-                                        className="h-auto py-2.5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-emerald-200 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
+                                        className="h-auto py-2.5 px-6 bg-primary hover:bg-primary/90 text-white font-semibold rounded-xl shadow-lg shadow-primary/20 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
                                     >
                                         {initialData ? 'Guardar Cambios' : 'Crear Plan'}
                                     </Button>

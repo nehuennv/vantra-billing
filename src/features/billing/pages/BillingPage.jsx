@@ -259,7 +259,7 @@ export default function BillingPage() {
                                         <div className={cn(
                                             "h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold border transition-colors",
                                             isActive ? "border-transparent bg-white/20 text-white" :
-                                                isCompleted ? "bg-emerald-100 text-emerald-600 border-emerald-100" : "border-slate-300 bg-transparent"
+                                                isCompleted ? "bg-primary/15 text-primary border-primary/20" : "border-slate-300 bg-transparent"
                                         )}>
                                             {isCompleted ? <CheckCircle2 className="h-3 w-3" /> : step.id}
                                         </div>

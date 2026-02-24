@@ -1,11 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { clientConfig } from '../../config/client';
 
 function hexToHsl(hex) {
-    // Remove hash if present
     hex = hex.replace(/^#/, '');
 
-    // Parse r, g, b
     let r = parseInt(hex.substring(0, 2), 16);
     let g = parseInt(hex.substring(2, 4), 16);
     let b = parseInt(hex.substring(4, 6), 16);
@@ -19,7 +17,7 @@ function hexToHsl(hex) {
     let h, s, l = (max + min) / 2;
 
     if (max === min) {
-        h = s = 0; // achromatic
+        h = s = 0;
     } else {
         let d = max - min;
         s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -31,8 +29,6 @@ function hexToHsl(hex) {
         h /= 6;
     }
 
-    // Format as space-separated values for Tailwind v4 compatibility
-    // e.g., "222.2 47.4% 11.2%"
     h = Math.round(h * 360);
     s = Math.round(s * 100);
     l = Math.round(l * 100);
@@ -40,22 +36,50 @@ function hexToHsl(hex) {
     return `${h} ${s}% ${l}%`;
 }
 
+function getEffectiveColors() {
+    // Start with config defaults
+    const colors = { ...clientConfig.colors };
+
+    // Override primary if user has set a custom color in localStorage
+    try {
+        const stored = JSON.parse(localStorage.getItem('vantra_settings') || 'null');
+        if (stored?.appearance?.primaryColor) {
+            colors.primary = stored.appearance.primaryColor;
+        }
+    } catch (e) {
+        // Ignore parse errors
+    }
+
+    return colors;
+}
+
+function applyColors() {
+    const root = document.documentElement;
+    const colors = getEffectiveColors();
+
+    Object.entries(colors).forEach(([key, value]) => {
+        if (value.startsWith('#')) {
+            root.style.setProperty(`--${key}`, hexToHsl(value));
+        } else {
+            root.style.setProperty(`--${key}`, value);
+        }
+    });
+}
+
 export function ThemeProvider({ children }) {
+    // Apply colors on mount
     useEffect(() => {
-        const root = document.documentElement;
+        applyColors();
+    }, []);
 
-        // Iterate over all colors in the config
-        Object.entries(clientConfig.colors).forEach(([key, value]) => {
-            // Check if value is a hex string
-            if (value.startsWith('#')) {
-                const hslValue = hexToHsl(value);
-                root.style.setProperty(`--${key}`, hslValue);
-            } else {
-                // Fallback if user still uses HSL string or other format
-                root.style.setProperty(`--${key}`, value);
-            }
-        });
+    // Listen for storage events (fired by useSettings when saving)
+    useEffect(() => {
+        const handleStorageChange = () => {
+            applyColors();
+        };
 
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
     }, []);
 
     return children;

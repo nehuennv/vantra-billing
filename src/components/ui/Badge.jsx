@@ -6,7 +6,7 @@ export function Badge({ className, variant = "default", ...props }) {
         secondary: "border-transparent bg-slate-100 text-slate-700 hover:bg-slate-200",
         destructive: "border-transparent bg-rose-50 text-rose-700 hover:bg-rose-100",
         outline: "text-foreground border-slate-200",
-        success: "border-transparent bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+        success: "border-transparent bg-primary/10 text-primary hover:bg-primary/15",
         warning: "border-transparent bg-amber-50 text-amber-700 hover:bg-amber-100",
         info: "border-transparent bg-sky-50 text-sky-700 hover:bg-sky-100",
     };

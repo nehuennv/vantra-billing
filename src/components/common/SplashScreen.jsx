@@ -1,10 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { clientConfig } from "../../config/client";
+import { clientConfig, getPrimaryColor } from "../../config/client";
 import { Loader2 } from "lucide-react";
 import { createPortal } from "react-dom";
 
 export function SplashScreen({ isVisible, message = "Cargando..." }) {
-    const primaryColor = clientConfig.colors?.primary || '#18181b';
+    const primaryColor = getPrimaryColor();
 
     return createPortal(
         <AnimatePresence>

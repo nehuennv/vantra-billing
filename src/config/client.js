@@ -62,9 +62,23 @@ export const clientConfig = {
     icon: Globe,       // Global / Tech World
 
     colors: {
-        primary: "#059669", // Indigo-600 (Vibrant & Deep)
+        primary: "#0ea4e9", // Indigo-600 (Vibrant & Deep)
 
         // Slavic/Blue-ish dark (HSL)
         // You can add more brand colors here if needed
     }
 };
+
+/**
+ * Returns the effective primary color hex value.
+ * Checks localStorage for user override, falls back to clientConfig default.
+ */
+export function getPrimaryColor() {
+    try {
+        const stored = JSON.parse(localStorage.getItem('vantra_settings') || 'null');
+        if (stored?.appearance?.primaryColor) {
+            return stored.appearance.primaryColor;
+        }
+    } catch (e) { /* ignore */ }
+    return clientConfig.colors.primary;
+}

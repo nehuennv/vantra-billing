@@ -136,7 +136,7 @@ export function CreatePlanModal({ isOpen, onClose, onConfirm, initialData = null
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600">Subida (Mbps)</label>
                             <div className="relative">
-                                <Upload className="absolute left-3 top-3 h-4 w-4 text-emerald-500" />
+                                <Upload className="absolute left-3 top-3 h-4 w-4 text-primary" />
                                 <input
                                     type="number"
                                     placeholder="0"

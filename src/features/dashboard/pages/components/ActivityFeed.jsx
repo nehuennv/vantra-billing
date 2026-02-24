@@ -45,7 +45,7 @@ export function ActivityFeed({ loading, invoices = [] }) {
                         <div key={inv.id} className="flex items-center justify-between group p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 cursor-pointer transition-all duration-200">
                             <div className="flex items-center space-x-4">
                                 <div className={`h-10 w-10 rounded-full flex items-center justify-center border shadow-sm
-                                    ${inv.status === 'paid' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : ''}
+                                    ${inv.status === 'paid' ? 'bg-primary/10 border-primary/20 text-primary' : ''}
                                     ${inv.status === 'pending' ? 'bg-amber-50 border-amber-100 text-amber-600' : ''}
                                     ${inv.status === 'overdue' ? 'bg-rose-50 border-rose-100 text-rose-600' : ''}
                                 `}>

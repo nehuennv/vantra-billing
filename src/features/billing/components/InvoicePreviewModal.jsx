@@ -7,10 +7,12 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
 import { createInvoice } from '../services/invoiceService';
-import { invoiceAPI } from '../../../services/apiClient'; // Import for direct use if needed or use service
+import { invoiceAPI } from '../../../services/apiClient';
+import { getPrimaryColor } from '../../../config/client';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from './InvoicePDF';
 import { MonthYearPicker } from './MonthYearPicker';
+import { clientConfig } from '../../../config/client';
 
 // --- SUB-COMPONENTS FOR ANIMATION ---
 
@@ -30,15 +32,15 @@ const LoadingSteps = ({ currentStep }) => {
                 <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                    className="h-24 w-24 rounded-full border-[3px] border-slate-100 border-t-emerald-500 border-r-emerald-500"
+                    className="h-24 w-24 rounded-full border-[3px] border-slate-100 border-t-primary border-r-primary"
                 />
                 <motion.div
                     animate={{ rotate: -180 }}
                     transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                    className="absolute inset-2 rounded-full border-[3px] border-slate-100 border-b-emerald-400 border-l-emerald-400 opacity-60"
+                    className="absolute inset-2 rounded-full border-[3px] border-slate-100 border-b-primary/70 border-l-primary/70 opacity-60"
                 />
                 <div className="absolute inset-0 flex items-center justify-center flex-col">
-                    <span className="text-2xl font-bold text-emerald-600 tabular-nums">
+                    <span className="text-2xl font-bold text-primary tabular-nums">
                         {Math.round(((currentStep + 1) / steps.length) * 100)}%
                     </span>
                 </div>
@@ -51,7 +53,7 @@ const LoadingSteps = ({ currentStep }) => {
 
                 {/* Progress Line */}
                 <motion.div
-                    className="absolute left-[31px] top-2 w-0.5 bg-emerald-500 rounded-full origin-top"
+                    className="absolute left-[31px] top-2 w-0.5 bg-primary rounded-full origin-top"
                     initial={{ height: 0 }}
                     animate={{ height: `${(currentStep / (steps.length - 1)) * 100}%` }}
                     transition={{ duration: 0.5, ease: "easeInOut" }}
@@ -70,17 +72,17 @@ const LoadingSteps = ({ currentStep }) => {
                                 x: 0,
                                 scale: isActive ? 1.02 : 1
                             }}
-                            className={`relative flex items-center gap-4 text-base transition-colors duration-300 pl-2 ${isActive ? 'text-emerald-800 font-semibold' : 'text-slate-500'}`}
+                            className={`relative flex items-center gap-4 text-base transition-colors duration-300 pl-2 ${isActive ? 'text-primary font-semibold' : 'text-slate-500'}`}
                         >
                             <div className="relative z-10 flex items-center justify-center w-6 h-6 shrink-0">
                                 <motion.div
                                     animate={{
                                         scale: isActive ? [1, 1.2, 1] : 1,
-                                        backgroundColor: isCompleted || isActive ? '#10b981' : '#e2e8f0',
-                                        borderColor: isActive ? '#d1fae5' : 'transparent'
+                                        backgroundColor: isCompleted || isActive ? (getPrimaryColor()) : '#e2e8f0',
+                                        borderColor: isActive ? (getPrimaryColor()) + '33' : 'transparent'
                                     }}
                                     transition={{ duration: 0.5 }}
-                                    className={`h-4 w-4 rounded-full border-2 shadow-sm ${isActive ? 'ring-4 ring-emerald-500/20' : ''}`}
+                                    className={`h-4 w-4 rounded-full border-2 shadow-sm ${isActive ? 'ring-4 ring-primary/20' : ''}`}
                                 />
                             </div>
 
@@ -92,7 +94,7 @@ const LoadingSteps = ({ currentStep }) => {
                                     animate={{ scale: 1, opacity: 1 }}
                                     className="ml-auto"
                                 >
-                                    <Check className="h-5 w-5 text-emerald-500" />
+                                    <Check className="h-5 w-5 text-primary" />
                                 </motion.div>
                             )}
                         </motion.div>
@@ -115,9 +117,9 @@ const SuccessScreen = ({ invoice, onClose, onDownload, emailSent }) => {
                     damping: 20,
                     delay: 0.1
                 }}
-                className="h-28 w-28 bg-emerald-100/80 rounded-full flex items-center justify-center mb-8 shadow-inner ring-8 ring-emerald-50/50 backdrop-blur-sm"
+                className="h-28 w-28 bg-primary/15 rounded-full flex items-center justify-center mb-8 shadow-inner ring-8 ring-primary/10 backdrop-blur-sm"
             >
-                <CheckCircle2 className="h-14 w-14 text-emerald-600" />
+                <CheckCircle2 className="h-14 w-14 text-primary" />
             </motion.div>
 
             <motion.div
@@ -139,10 +141,10 @@ const SuccessScreen = ({ invoice, onClose, onDownload, emailSent }) => {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ delay: 0.5, type: "spring", stiffness: 100 }}
                 whileHover={{ scale: 1.02 }}
-                className="bg-white rounded-3xl p-8 w-full max-w-[500px] border border-slate-100 mb-10 grid grid-cols-2 gap-8 shadow-2xl shadow-emerald-900/5 relative overflow-hidden group"
+                className="bg-white rounded-3xl p-8 w-full max-w-[500px] border border-slate-100 mb-10 grid grid-cols-2 gap-8 shadow-2xl shadow-primary/5 relative overflow-hidden group"
             >
                 {/* Decorative Background */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-[100px] -mr-10 -mt-10 opacity-50 group-hover:scale-110 transition-transform duration-700" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-bl-[100px] -mr-10 -mt-10 opacity-50 group-hover:scale-110 transition-transform duration-700" />
 
                 <div className="text-left relative z-10">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Comprobante</p>
@@ -152,7 +154,7 @@ const SuccessScreen = ({ invoice, onClose, onDownload, emailSent }) => {
                 </div>
                 <div className="text-right relative z-10">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Final</p>
-                    <p className="text-3xl font-bold text-emerald-600 tracking-tighter">
+                    <p className="text-3xl font-bold text-primary tracking-tighter">
                         {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(invoice?.total_amount || invoice?.amount || invoice?.total || 0)}
                     </p>
                 </div>
@@ -173,7 +175,7 @@ const SuccessScreen = ({ invoice, onClose, onDownload, emailSent }) => {
                 </Button>
                 <Button
                     onClick={onDownload}
-                    className="flex-1 h-12 text-base bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 rounded-xl font-semibold transition-all hover:-translate-y-0.5"
+                    className="flex-1 h-12 text-base bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30 hover:shadow-primary/40 rounded-xl font-semibold transition-all hover:-translate-y-0.5"
                 >
                     <Download className="h-5 w-5 mr-2" />
                     Descargar PDF
@@ -407,7 +409,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
             <div className="bg-white px-8 py-6 border-b border-slate-100 flex items-start justify-between z-20 shrink-0">
                 <div>
                     <DialogTitle className="flex items-center gap-3 text-2xl font-bold text-slate-800">
-                        <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 shadow-sm shadow-emerald-100">
+                        <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-sm shadow-primary/10">
                             <FileText className="h-6 w-6" />
                         </div>
                         Nueva Factura
@@ -444,24 +446,24 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                             onChange={setPeriod}
                                             className={cn(
                                                 "h-11 bg-slate-50 border-slate-200 transition-all rounded-xl",
-                                                !readOnly && "hover:bg-white hover:border-emerald-300 hover:shadow-sm"
+                                                !readOnly && "hover:bg-white hover:border-primary/40 hover:shadow-sm"
                                             )}
                                         />
                                     </div>
                                 </div>
 
                                 {!readOnly && (
-                                    <label className={`hidden flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-emerald-50/50 border-emerald-200 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                    <label className={`hidden flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-primary/10 border-primary/30 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
                                         <div className="flex items-center h-5 mt-0.5">
                                             <input
                                                 type="checkbox"
                                                 checked={notifyClient}
                                                 onChange={(e) => setNotifyClient(e.target.checked)}
-                                                className="h-5 w-5 rounded-md border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer"
                                             />
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className={`font-semibold text-sm ${notifyClient ? 'text-emerald-800' : 'text-slate-700'}`}>
+                                            <span className={`font-semibold text-sm ${notifyClient ? 'text-primary' : 'text-slate-700'}`}>
                                                 Enviar por Email
                                             </span>
                                             <span className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -478,9 +480,9 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                 <DollarSign className="w-24 h-24 -mr-8 -mt-8" />
                             </div>
                             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Total Estimado</p>
-                            <p className="text-4xl font-bold tracking-tight text-emerald-400 truncate">{formatCurrency(total)}</p>
+                            <p className="text-4xl font-bold tracking-tight text-primary/70 truncate">{formatCurrency(total)}</p>
                             <p className="text-slate-500 text-xs mt-3 flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
                                 IVA incluido en precios finales
                             </p>
                         </div>
@@ -495,7 +497,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                     variant="ghost"
                                     size="sm"
                                     onClick={handleAddItem}
-                                    className="h-9 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-4 rounded-lg font-medium transition-colors"
+                                    className="h-9 text-primary hover:text-primary/80 hover:bg-primary/10 px-4 rounded-lg font-medium transition-colors"
                                 >
                                     <Plus className="h-4 w-4 mr-2" /> Agregar Item
                                 </Button>
@@ -596,7 +598,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                 </Button>
                 <Button
                     onClick={handleSubmit}
-                    className="h-11 px-8 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/30 rounded-xl font-semibold transition-all hover:scale-[1.02]"
+                    className="h-11 px-8 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30 rounded-xl font-semibold transition-all hover:scale-[1.02]"
                 >
                     {notifyClient ? <Send className="h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
                     {readOnly ? 'Cerrar' : 'Emitir Factura'}

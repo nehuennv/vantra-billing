@@ -73,7 +73,7 @@ export function AddServiceModal({ isOpen, onClose, onConfirm }) {
                     <Button
                         disabled={!selectedService}
                         onClick={handleSubmit}
-                        className={selectedService?.type === 'unique' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}
+                        className={selectedService?.type === 'unique' ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-primary hover:bg-primary/90 text-white'}
                     >
                         {selectedService?.type === 'unique' ? (
                             <span className="flex items-center gap-2"><Zap className="h-4 w-4" /> Facturar Ahora</span>

@@ -24,7 +24,7 @@ function StatCard({ title, value, subtext, icon: Icon, trend, trendDir, color, l
     // Colores dinámicos basados en la prop 'color'
     const colorStyles = {
         indigo: "bg-primary/10 text-primary", // Replaced indigo with primary
-        emerald: "bg-emerald-50 text-emerald-600",
+        emerald: "bg-primary/10 text-primary",
         orange: "bg-orange-50 text-orange-600",
         slate: "bg-slate-100 text-slate-600",
     };
@@ -43,7 +43,7 @@ function StatCard({ title, value, subtext, icon: Icon, trend, trendDir, color, l
                         <div className={cn(
                             "flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold border",
                             trendDir === 'up'
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                ? "bg-primary/10 text-primary border-primary/20"
                                 : "bg-rose-50 text-rose-700 border-rose-100"
                         )}>
                             {trendDir === 'up' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}

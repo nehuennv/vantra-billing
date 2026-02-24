@@ -15,7 +15,7 @@ export default function FinancePage() {
             <Card>
                 <CardHeader><CardTitle>Cashflow</CardTitle></CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold text-green-600">Positivo</div>
+                    <div className="text-2xl font-bold text-primary">Positivo</div>
                 </CardContent>
             </Card>
         </PageTransition>
