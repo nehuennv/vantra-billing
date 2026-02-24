@@ -2,7 +2,7 @@
 import fs from 'fs';
 
 const API_KEY = "gaston_sec_2026_xK9mPq4wL8nR";
-const API_URL = "https://gaston-backendmicroservice.toooti.easypanel.host/api/v1/clients";
+const API_URL = "https://gaston-backendmicroservice.alfgxs.easypanel.host/api/v1/clients";
 const CLIENT_ID = "1d8325c8-829c-410b-b983-9c0cba241e6c";
 
 const log = (msg) => {

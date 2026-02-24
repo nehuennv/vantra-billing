@@ -7,7 +7,7 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'https://gaston-backendmicroservice.toooti.easypanel.host',
+        target: 'https://gaston-backendmicroservice.alfgxs.easypanel.host',
         changeOrigin: true,
         secure: false,
       }

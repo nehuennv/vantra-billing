@@ -3,7 +3,7 @@ const https = require('https');
 const fs = require('fs');
 
 const API_KEY = "gaston_sec_2026_xK9mPq4wL8nR";
-const HOST = "gaston-backendmicroservice.toooti.easypanel.host";
+const HOST = "gaston-backendmicroservice.alfgxs.easypanel.host";
 const PATH = "/api/v1/clients";
 
 const log = (msg) => {
