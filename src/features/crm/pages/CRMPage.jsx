@@ -61,49 +61,89 @@ export default function CRMPage() {
         const load = async () => {
             setIsLoading(true);
             try {
-                const params = {
-                    page: viewMode === 'board' ? 1 : pagination.page,
-                    limit: viewMode === 'board' ? 10000 : pagination.limit,
-                    search: debouncedSearch,
-                    _t: Date.now() // Cache buster
-                };
+                if (viewMode === 'board') {
+                    const limitPerPage = 100; // Limit within expected API constraints
+                    let allClients = [];
 
-                // Filter by UI Status (Backend Categoria)
-                if (filterStatus !== 'all') {
-                    params.categoria = filterStatus;
-                }
+                    const params = {
+                        page: 1,
+                        limit: limitPerPage,
+                        search: debouncedSearch,
+                        _t: Date.now()
+                    };
+                    if (filterStatus !== 'all') params.categoria = filterStatus;
 
-                // Backend ignores is_active parameter (returns mixed always).
-                // So we fetch everything and filter client-side.
+                    const response = await clientAPI.getAll(params);
+                    const rawList = Array.isArray(response) ? response : response.data || [];
+                    allClients = [...allClients, ...rawList.map(adaptClient)];
 
-                const response = await clientAPI.getAll(params);
+                    if (response.pagination) {
+                        const { totalPages } = response.pagination;
+                        setPagination(prev => ({
+                            ...prev,
+                            total: response.pagination.total,
+                            totalPages: response.pagination.totalPages
+                        }));
 
-                const rawList = Array.isArray(response) ? response : response.data || [];
-                const adapted = rawList.map(adaptClient);
-                setClients(adapted);
-
-                if (response.pagination) {
-                    setPagination(prev => ({
-                        ...prev,
-                        total: response.pagination.total,
-                        totalPages: response.pagination.totalPages
-                    }));
-                }
-
-                // Dynamic Column Generation (Only adds from loaded, but better than nothing)
-                const usedStatuses = [...new Set(adapted.map(c => c.status))];
-                setColumns(prev => {
-                    const newCols = [...prev];
-                    usedStatuses.forEach(s => {
-                        if (s && !newCols.find(c => c.id === s)) {
-                            newCols.push({
-                                id: s,
-                                title: s.toUpperCase().replace(/_/g, ' ')
-                            });
+                        // Fetch remaining pages in parallel
+                        if (totalPages > 1) {
+                            const promises = [];
+                            for (let p = 2; p <= totalPages; p++) {
+                                promises.push(clientAPI.getAll({ ...params, page: p }));
+                            }
+                            const responses = await Promise.all(promises);
+                            for (const res of responses) {
+                                const rList = Array.isArray(res) ? res : res.data || [];
+                                allClients = [...allClients, ...rList.map(adaptClient)];
+                            }
                         }
+                    }
+
+                    setClients(allClients);
+
+                    const usedStatuses = [...new Set(allClients.map(c => c.status))];
+                    setColumns(prev => {
+                        const newCols = [...prev];
+                        usedStatuses.forEach(s => {
+                            if (s && !newCols.find(c => c.id === s)) {
+                                newCols.push({ id: s, title: s.toUpperCase().replace(/_/g, ' ') });
+                            }
+                        });
+                        return newCols;
                     });
-                    return newCols;
-                });
+                } else {
+                    const params = {
+                        page: pagination.page,
+                        limit: pagination.limit,
+                        search: debouncedSearch,
+                        _t: Date.now()
+                    };
+                    if (filterStatus !== 'all') params.categoria = filterStatus;
+
+                    const response = await clientAPI.getAll(params);
+                    const rawList = Array.isArray(response) ? response : response.data || [];
+                    const adapted = rawList.map(adaptClient);
+                    setClients(adapted);
+
+                    if (response.pagination) {
+                        setPagination(prev => ({
+                            ...prev,
+                            total: response.pagination.total,
+                            totalPages: response.pagination.totalPages
+                        }));
+                    }
+
+                    const usedStatuses = [...new Set(adapted.map(c => c.status))];
+                    setColumns(prev => {
+                        const newCols = [...prev];
+                        usedStatuses.forEach(s => {
+                            if (s && !newCols.find(c => c.id === s)) {
+                                newCols.push({ id: s, title: s.toUpperCase().replace(/_/g, ' ') });
+                            }
+                        });
+                        return newCols;
+                    });
+                }
 
             } catch (error) {
                 console.error("Error loading clients", error);
