@@ -62,8 +62,8 @@ export default function CRMPage() {
             setIsLoading(true);
             try {
                 const params = {
-                    page: pagination.page,
-                    limit: pagination.limit,
+                    page: viewMode === 'board' ? 1 : pagination.page,
+                    limit: viewMode === 'board' ? 10000 : pagination.limit,
                     search: debouncedSearch,
                     _t: Date.now() // Cache buster
                 };
@@ -115,7 +115,7 @@ export default function CRMPage() {
 
         // Reset page when filters change
         load();
-    }, [pagination.page, pagination.limit, debouncedSearch, filterStatus]);
+    }, [pagination.page, pagination.limit, debouncedSearch, filterStatus, viewMode]);
 
     // Reset page to 1 when filters change
     useEffect(() => {

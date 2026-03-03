@@ -43,6 +43,7 @@ export default function BillingPage() {
     const [items, setItems] = useState([
         { id: crypto.randomUUID(), description: "", quantity: 1, unit_price: 0 }
     ]);
+    const [notifyClient, setNotifyClient] = useState(false);
 
     // Flow State
     const [status, setStatus] = useState('idle'); // idle, submitting, success, error
@@ -126,7 +127,7 @@ export default function BillingPage() {
                     quantity: Number(i.quantity),
                     unit_price: Number(i.unit_price)
                 })),
-                options: { notifyClient: false }
+                options: { notifyClient }
             };
 
             const response = await createInvoice(payload);
@@ -292,7 +293,7 @@ export default function BillingPage() {
                                 {status === 'success' && (
                                     <SuccessScreen
                                         invoice={createdInvoice}
-                                        emailSent={false}
+                                        emailSent={notifyClient}
                                         onClose={() => {
                                             setStatus('idle');
                                             setCurrentStep(1);
@@ -380,19 +381,40 @@ export default function BillingPage() {
 
                                                         {/* Period Picker - Shows immediately */}
                                                         <div className="pt-4 border-t border-slate-100">
-                                                            <div className="max-w-md">
-                                                                <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                                                    <Calendar className="h-5 w-5 text-slate-400" />
-                                                                    Periodo a Facturar
-                                                                </h2>
-                                                                <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                                                                    <Label className="text-base mb-2 block">Mes y Año</Label>
-                                                                    <MonthYearPicker
-                                                                        value={period}
-                                                                        onChange={setPeriod}
-                                                                        className="h-14"
-                                                                    />
+                                                            <div className="max-w-md space-y-4">
+                                                                <div>
+                                                                    <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                                                        <Calendar className="h-5 w-5 text-slate-400" />
+                                                                        Periodo a Facturar
+                                                                    </h2>
+                                                                    <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                                                                        <Label className="text-base mb-2 block">Mes y Año</Label>
+                                                                        <MonthYearPicker
+                                                                            value={period}
+                                                                            onChange={setPeriod}
+                                                                            className="h-14"
+                                                                        />
+                                                                    </div>
                                                                 </div>
+
+                                                                <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-primary/10 border-primary/30 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                                                    <div className="flex items-center h-5 mt-0.5">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={notifyClient}
+                                                                            onChange={(e) => setNotifyClient(e.target.checked)}
+                                                                            className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className={`font-semibold text-sm ${notifyClient ? 'text-primary' : 'text-slate-700'}`}>
+                                                                            Enviar por Email
+                                                                        </span>
+                                                                        <span className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                                                            Si activas esto, el cliente recibirá el PDF automáticamente.
+                                                                        </span>
+                                                                    </div>
+                                                                </label>
                                                             </div>
                                                         </div>
                                                     </motion.div>
@@ -512,8 +534,11 @@ export default function BillingPage() {
                                                         {new Date(period + '-10').toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
                                                     </p>
                                                     <div className="flex items-center gap-2 mt-3">
-                                                        <span className="text-xs bg-slate-100 text-slate-500 px-3 py-1 rounded-full font-medium w-fit">
-                                                            Sin notificación email
+                                                        <span className={cn(
+                                                            "text-xs px-3 py-1 rounded-full font-medium w-fit transition-colors",
+                                                            notifyClient ? "bg-primary/10 text-primary" : "bg-slate-100 text-slate-500"
+                                                        )}>
+                                                            {notifyClient ? "Se enviará por email" : "Sin notificación email"}
                                                         </span>
                                                     </div>
                                                 </div>

@@ -453,7 +453,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                 </div>
 
                                 {!readOnly && (
-                                    <label className={`hidden flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-primary/10 border-primary/30 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                    <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-primary/10 border-primary/30 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
                                         <div className="flex items-center h-5 mt-0.5">
                                             <input
                                                 type="checkbox"
