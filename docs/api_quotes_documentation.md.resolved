@@ -1,0 +1,345 @@
+# 📋 Sistema de Presupuestos (Quotes) — Documentación API Frontend
+
+> **Base URL:** `https://api.izzinet.com.ar/v1/clients`
+> **Última actualización:** 02/03/2026
+
+---
+
+## Índice
+1. [Resumen del Flujo](#resumen-del-flujo)
+2. [Autenticación](#autenticación)
+3. [Endpoints](#endpoints)
+   - [POST - Generar y Enviar Presupuesto](#1-generar-y-enviar-presupuesto)
+   - [GET - Listar Presupuestos de un Cliente](#2-listar-presupuestos-de-un-cliente)
+   - [GET - Descargar PDF de un Presupuesto](#3-descargar-pdf-de-un-presupuesto)
+4. [Errores Comunes](#errores-comunes)
+5. [Esquema de Base de Datos](#esquema-de-base-de-datos)
+6. [Estructura del PDF](#estructura-del-pdf)
+7. [Notas de Integración](#notas-de-integración)
+
+---
+
+## Resumen del Flujo
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend (Dashboard)
+    participant B as Backend API
+    participant DB as Base de Datos
+    participant E as Servidor Email
+    participant C as Cliente (email)
+
+    F->>B: POST /clients/:id/send-quote (JWT + API Key)
+    B->>DB: Obtener datos del cliente
+    B->>DB: Obtener servicios activos (client_services)
+    B->>DB: Generar N° correlativo (P00001-XXXXXXXX)
+    B->>DB: INSERT en quotes + quote_items
+    B->>B: Generar PDF (pdfkit)
+    B->>DB: Guardar ruta del PDF
+    B->>E: Enviar email con PDF adjunto
+    E->>C: Email con presupuesto
+    B->>F: Response con quote_id, quote_number, total
+    Note over F: Gaston puede luego listar y descargar
+    F->>B: GET /clients/:id/quotes
+    F->>B: GET /clients/:id/quotes/:quoteId/pdf
+```
+
+**Flujo de negocio:**
+1. Gaston configura los servicios del cliente desde el dashboard.
+2. Cuando está listo, presiona **"Enviar Presupuesto"**.
+3. El backend genera un PDF tipo Ticket con letra "P", lo guarda en DB y lo envía por email al cliente.
+4. El cliente recibe el email, revisa el PDF y responde dando su OK.
+5. Gaston puede volver a ver/descargar el PDF desde el panel en cualquier momento.
+
+---
+
+## Autenticación
+
+Todos los endpoints requieren el header `x-api-key`:
+
+```
+x-api-key: <GASTON_API_SECRET>
+```
+
+El endpoint de **generar presupuesto** (POST) además requiere un **JWT Bearer Token** para identificar al usuario que emite el presupuesto:
+
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+> [!IMPORTANT]
+> El JWT contiene el `userId` del usuario logueado. Este dato se usa para buscar el nombre del usuario en la tabla `users` y estamparlo en el PDF como "Usuario: Gaston Andres Puleio".
+
+---
+
+## Endpoints
+
+### 1. Generar y Enviar Presupuesto
+
+Genera un presupuesto, lo guarda en la base de datos, crea el PDF y lo envía por email al cliente.
+
+```
+POST /v1/clients/:id/send-quote
+```
+
+#### Headers Requeridos
+| Header | Valor | Requerido |
+|---|---|---|
+| `x-api-key` | API key de Gaston | ✅ |
+| `Authorization` | `Bearer <JWT>` | ✅ |
+| `Content-Type` | `application/json` | ❌ |
+
+#### Path Parameters
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| [id](file:///c:/Users/pedro/Documents/VANTRA/BackendMicroservice/src/middlewares/auth.middleware.ts#12-32) | `UUID` | ID del cliente al que se le envía el presupuesto |
+
+#### Request Body
+No requiere body. Toda la información se obtiene automáticamente de los servicios activos del cliente.
+
+#### Response Exitosa — `200 OK`
+
+```json
+{
+  "status": "success",
+  "message": "Presupuesto P00001-00000001 generado y enviado exitosamente",
+  "data": {
+    "success": true,
+    "quote_id": "41aefe5f-a867-4e89-ac22-1a78aacb77e6",
+    "quote_number": "P00001-00000001",
+    "total_amount": 43.56,
+    "email_sent": true,
+    "pdf_path": "/tmp/quotes/quote_P00001-00000001.pdf",
+    "items_count": 2
+  }
+}
+```
+
+#### Campos de la Response
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `data.quote_id` | `UUID` | ID único del presupuesto en la tabla `quotes` |
+| `data.quote_number` | `string` | Número correlativo del presupuesto (ej: `P00001-00000001`) |
+| `data.total_amount` | `number` | Monto total del presupuesto (neto + IVA 21%) |
+| `data.email_sent` | `boolean` | `true` si el email se envió correctamente |
+| `data.pdf_path` | `string` | Ruta interna del PDF en el servidor |
+| `data.items_count` | `number` | Cantidad de ítems/servicios incluidos |
+
+---
+
+### 2. Listar Presupuestos de un Cliente
+
+Retorna todos los presupuestos emitidos para un cliente, ordenados del más reciente al más antiguo.
+
+```
+GET /v1/clients/:id/quotes
+```
+
+#### Headers Requeridos
+| Header | Valor | Requerido |
+|---|---|---|
+| `x-api-key` | API key de Gaston | ✅ |
+
+#### Path Parameters
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| [id](file:///c:/Users/pedro/Documents/VANTRA/BackendMicroservice/src/middlewares/auth.middleware.ts#12-32) | `UUID` | ID del cliente |
+
+#### Response Exitosa — `200 OK`
+
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "41aefe5f-a867-4e89-ac22-1a78aacb77e6",
+      "quote_number": "P00001-00000001",
+      "user_name": "Gaston Andres Puleio",
+      "status": "SENT",
+      "total_amount": "43.56",
+      "pdf_path": "/tmp/quotes/quote_P00001-00000001.pdf",
+      "created_at": "2026-03-02T04:27:42.123Z"
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-bcde-f01234567890",
+      "quote_number": "P00001-00000002",
+      "user_name": "Gaston Andres Puleio",
+      "status": "SENT",
+      "total_amount": "120.00",
+      "pdf_path": "/tmp/quotes/quote_P00001-00000002.pdf",
+      "created_at": "2026-03-01T18:15:00.000Z"
+    }
+  ]
+}
+```
+
+#### Campos de cada Quote
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| [id](file:///c:/Users/pedro/Documents/VANTRA/BackendMicroservice/src/middlewares/auth.middleware.ts#12-32) | `UUID` | ID único del presupuesto (usar para descargar PDF) |
+| `quote_number` | `string` | Número visible del presupuesto |
+| `user_name` | `string` | Nombre del usuario que emitió el presupuesto |
+| `status` | `string` | Estado: `DRAFT`, `SENT`, `ACCEPTED`, `REJECTED` |
+| `total_amount` | `string` | Monto total (string numérico) |
+| `pdf_path` | `string` | Ruta interna del PDF |
+| `created_at` | `ISO 8601` | Fecha y hora de creación |
+
+---
+
+### 3. Descargar PDF de un Presupuesto
+
+Retorna el archivo PDF del presupuesto para visualización o descarga.
+
+```
+GET /v1/clients/:clientId/quotes/:quoteId/pdf
+```
+
+#### Headers Requeridos
+| Header | Valor | Requerido |
+|---|---|---|
+| `x-api-key` | API key de Gaston | ✅ |
+
+#### Path Parameters
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| `clientId` | `UUID` | ID del cliente |
+| `quoteId` | `UUID` | ID del presupuesto (obtenido de la lista) |
+
+#### Response Exitosa — `200 OK`
+- **Content-Type:** `application/pdf`
+- **Content-Disposition:** `inline; filename="presupuesto_<quoteId>.pdf"`
+- **Body:** Binario del archivo PDF
+
+#### Uso en Frontend
+
+```javascript
+// Abrir PDF en nueva pestaña
+const url = `${BASE_URL}/v1/clients/${clientId}/quotes/${quoteId}/pdf`;
+window.open(url, '_blank');
+
+// O descargar como archivo
+const response = await fetch(url, {
+  headers: { 'x-api-key': API_KEY }
+});
+const blob = await response.blob();
+const link = document.createElement('a');
+link.href = URL.createObjectURL(blob);
+link.download = `presupuesto_${quoteNumber}.pdf`;
+link.click();
+```
+
+---
+
+## Errores Comunes
+
+| HTTP Code | Código | Mensaje | Causa |
+|---|---|---|---|
+| `401` | `MISSING_API_KEY` | Se requiere el header x-api-key | Falta el header `x-api-key` |
+| `401` | `INVALID_API_KEY` | El x-api-key proporcionado no es válido | API key incorrecta |
+| `401` | `Unauthorized` | Missing Authorization header | Falta el JWT (solo en POST send-quote) |
+| `401` | `Unauthorized` | Invalid or expired token | JWT expirado o inválido |
+| `404` | `CLIENT_NOT_FOUND` | Cliente no encontrado | El [id](file:///c:/Users/pedro/Documents/VANTRA/BackendMicroservice/src/middlewares/auth.middleware.ts#12-32) no existe en la tabla [clients](file:///c:/Users/pedro/Documents/VANTRA/BackendMicroservice/src/routes/v1/clientsRoutes.ts#38-71) |
+| `400` | `NO_EMAIL` | El cliente no tiene email de facturación configurado | Campo `email_billing` vacío |
+| `400` | `NO_SERVICES` | El cliente no tiene servicios activos para presupuestar | No hay servicios en `client_services` |
+| `404` | — | PDF del presupuesto no encontrado | El archivo PDF fue eliminado del servidor |
+
+#### Formato de Error Estándar
+
+```json
+{
+  "status": "error",
+  "code": "NO_EMAIL",
+  "message": "El cliente no tiene email de facturación configurado"
+}
+```
+
+---
+
+## Esquema de Base de Datos
+
+### Tabla `quotes`
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| [id](file:///c:/Users/pedro/Documents/VANTRA/BackendMicroservice/src/middlewares/auth.middleware.ts#12-32) | `UUID` (PK) | ID único autogenerado |
+| `client_id` | `UUID` (FK → clients) | Referencia al cliente |
+| `quote_number` | `VARCHAR(50)` UNIQUE | Número correlativo: `P00001-00000001` |
+| `user_name` | `VARCHAR(100)` | Nombre del usuario que emitió |
+| `status` | `VARCHAR(50)` | `DRAFT` · `SENT` · `ACCEPTED` · `REJECTED` |
+| `total_amount` | `NUMERIC(10,2)` | Monto total (neto + IVA) |
+| `pdf_path` | `VARCHAR(255)` | Ruta al PDF generado |
+| `created_at` | `TIMESTAMPTZ` | Fecha de creación |
+| `updated_at` | `TIMESTAMPTZ` | Última actualización |
+
+### Tabla `quote_items`
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| [id](file:///c:/Users/pedro/Documents/VANTRA/BackendMicroservice/src/middlewares/auth.middleware.ts#12-32) | `UUID` (PK) | ID único autogenerado |
+| `quote_id` | `UUID` (FK → quotes) | Referencia al presupuesto |
+| `display_code` | `VARCHAR(50)` | Código del servicio (ej: `SRV-0001`) |
+| `description` | `TEXT` | Nombre/descripción del servicio |
+| `quantity` | `NUMERIC(10,2)` | Cantidad |
+| `unit_price` | `NUMERIC(10,2)` | Precio unitario |
+| `total_price` | `NUMERIC(10,2)` | Total línea (quantity × unit_price) |
+| `created_at` | `TIMESTAMPTZ` | Fecha de creación |
+
+---
+
+## Estructura del PDF
+
+El PDF generado replica el formato de Ticket A de AFIP pero con identificador **"P"** (Presupuesto):
+
+```
+┌─────────────────────────────────────────────────────┐
+│  IZZINet                │ ┌─────────────────────┐  │
+│  ●● Globaltech          │ │ █P█  ORIGINAL       │  │
+│                         │ │ Presupuesto A       │  │
+│                         │ │ Nº P00001-00000001  │  │
+│  IZZI NET               │ │ 02/03/2026          │  │
+│  IVA Resp. Inscripto    │ └─────────────────────┘  │
+│  SAN MARTIN 663         │  CUIT: 30-71879318-8     │
+├─────────────────────────┼──────────────────────────┤
+│ Razon Social: EMPRESA   │ Condición de venta:      │
+│ CUIT: XX-XXXXXXXX-X     │   Contado                │
+│ Cond. IVA: Resp. Insc.  │ Usuario:                 │
+│ Domicilio: ...           │   Gaston Andres Puleio  │
+│ Localidad: ...           │ Conceptos incluidos:     │
+│ Provincia: ...           │                          │
+├──────────────────────────────────────────────────────┤
+│ Código │ Cant │ Producto        │ Precio │IVA│ Imp. │
+│ SRV-01 │  1   │ Internet 100MB  │ $18.00 │21%│$18.0 │
+│ SRV-02 │  1   │ Soporte Técnico │ $18.00 │21%│$18.0 │
+├──────────────────────────────────────────────────────┤
+│ Observaciones:           │          Subtotal: $36.00│
+│ PLAZO: 48 Hs.            │    Neto gravado: $36.00 │
+│ IMPLEMENTACION: Incluida │   Neto no grav.:  $0.00 │
+│ FORMA DE PAGO: Mensual   │     Neto exento:  $0.00 │
+│                          │       Impuestos:  $0.00 │
+│                          │         IVA 21%:  $7.56 │
+│                          │ ┌──────────────────────┐│
+│                          │ │    TOTAL:  $43.56     ││
+│                          │ └──────────────────────┘│
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## Notas de Integración
+
+> [!TIP]
+> **Botón "Enviar Presupuesto"** en el panel del cliente: debería hacer un `POST /v1/clients/:id/send-quote` con ambos headers (API Key + JWT). Si la response es `200` con `email_sent: true`, mostrar un toast de éxito.
+
+> [!IMPORTANT]
+> **Prerequisito:** El cliente DEBE tener el campo `email_billing` configurado. Si no lo tiene, el endpoint devuelve un `400` con código `NO_EMAIL`. Se recomienda validar esto en el frontend antes de habilitar el botón.
+
+> [!NOTE]
+> **Numeración:** Los números de presupuesto son correlativos y automáticos (`P00001-00000001`, `P00001-00000002`, etc.). No se envían desde el frontend.
+
+> [!NOTE]
+> **Usuario:** El nombre del usuario que emite el presupuesto se obtiene automáticamente del JWT. Aparecerá en el PDF como "Usuario: Nombre Completo".
+
+> [!WARNING]
+> **El endpoint de descarga de PDF** requiere que el archivo exista en el servidor. Si el servidor se reinicia o se limpia el directorio temporal, los PDFs podrían perderse. En ese caso, el endpoint de descarga retornará un `404`.

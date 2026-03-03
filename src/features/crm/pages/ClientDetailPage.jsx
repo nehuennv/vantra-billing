@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useQuotes } from '../../../hooks/useQuotes';
 import { ArrowLeft, Edit, FileText, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw, Download, Plus, X, Layers } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -32,6 +33,7 @@ const ICON_MAP = {
 export default function ClientDetailPage() {
     const { toast } = useToast();
     const { id } = useParams();
+    const { quotes, isLoading: isLoadingQuotes, fetchQuotes, sendQuote, downloadQuote } = useQuotes(id);
     const [client, setClient] = useState(null);
     const [services, setServices] = useState([]);
     const [packages, setPackages] = useState([]);
@@ -159,6 +161,10 @@ export default function ClientDetailPage() {
     const [serviceToEdit, setServiceToEdit] = useState(null);
     const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
     const [serviceToDelete, setServiceToDelete] = useState(null);
+
+    useEffect(() => {
+        if (id) fetchQuotes();
+    }, [id, fetchQuotes]);
 
     // Initial Load
     useEffect(() => {
@@ -707,6 +713,22 @@ export default function ClientDetailPage() {
 
                     <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
 
+                    <div className="group relative">
+                        <Button
+                            onClick={() => sendQuote()}
+                            disabled={!client.email_billing && !client.email}
+                            className={`bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all px-6 hover:shadow-lg hover:-translate-y-0.5 mt-0 ${(!client.email_billing && !client.email) ? 'opacity-50 cursor-not-allowed hidden md:flex' : ''}`}
+                        >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Enviar Presupuesto
+                        </Button>
+                        {(!client.email_billing && !client.email) && (
+                            <div className="absolute top-full right-0 mt-2 whitespace-nowrap bg-slate-800 text-white text-xs px-3 py-1.5 rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                Requiere configurar email de facturación
+                            </div>
+                        )}
+                    </div>
+
                     <Button
                         onClick={handleOpenPreview}
                         disabled={isGenerating || services.length === 0}
@@ -1075,7 +1097,91 @@ export default function ClientDetailPage() {
                         }
                     </Card >
 
-                    {/* SECCIÓN 2: HISTORIAL DE FACTURAS */}
+                    {/* SECCIÓN 2: HISTORIAL DE PRESUPUESTOS */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 px-1 mb-2">
+                            <FileText className="h-4 w-4 text-slate-400" />
+                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Historial de Presupuestos</h2>
+                        </div>
+
+                        <Card className="shadow-none border border-slate-200/60 bg-white/50 overflow-hidden">
+                            {isLoadingQuotes ? (
+                                <div className="p-4 space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                                    {[1, 2, 3].map(i => (
+                                        <div key={i} className="flex items-center justify-between">
+                                            <Skeleton className="h-4 w-24 animate-pulse" />
+                                            <Skeleton className="h-4 w-32 animate-pulse" />
+                                            <Skeleton className="h-6 w-16 rounded-full animate-pulse" />
+                                            <Skeleton className="h-4 w-20 animate-pulse" />
+                                            <Skeleton className="h-8 w-8 rounded-full animate-pulse" />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : quotes?.length > 0 ? (
+                                <div className="overflow-x-auto w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <table className="w-full text-sm text-left whitespace-nowrap">
+                                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
+                                            <tr>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide">Fecha</th>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide">Número</th>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide text-center">Estado</th>
+                                                <th className="px-6 py-3 text-xs uppercase tracking-wide text-right">Monto</th>
+                                                <th className="px-6 py-3 w-[50px]"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {quotes.map((quote) => {
+                                                const amount = Number(quote.total_amount || 0);
+                                                const badgeColor = amount < 1000 ? 'bg-indigo-600' : 'bg-sky-500';
+
+                                                return (
+                                                    <tr key={quote.id} className="hover:bg-slate-50 transition-colors group">
+                                                        <td className="px-6 py-3 text-slate-600">
+                                                            {new Date(quote.created_at).toLocaleDateString('es-AR')}
+                                                        </td>
+                                                        <td className="px-6 py-3 font-mono text-xs text-slate-500">
+                                                            {quote.quote_number}
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            <span className={`px-2 py-1 rounded-full text-[10px] uppercase font-bold text-white ${badgeColor}`}>
+                                                                {quote.status === 'SENT' ? 'Enviado' : quote.status === 'ACCEPTED' ? 'Aceptado' : 'Presupuesto'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-right font-bold font-sans text-slate-900">
+                                                            ${amount.toLocaleString()}
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    downloadQuote(quote);
+                                                                }}
+                                                                title="Descargar PDF"
+                                                            >
+                                                                <Download className="h-4 w-4" />
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <EmptyState
+                                    icon={FileText}
+                                    title="Aún no hay presupuestos emitidos"
+                                    description="No se han generado presupuestos históricamente para este cliente. Haz clic en 'Enviar Presupuesto' para crear el primero."
+                                    className="py-12 border-none"
+                                />
+                            )}
+                        </Card>
+                    </div>
+
+                    {/* SECCIÓN 3: HISTORIAL DE FACTURAS */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 px-1 mb-2">
                             <FileText className="h-4 w-4 text-slate-400" />
