@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ChevronRight, FileText, Calendar, Plus, Trash2, Send, Download, ChevronLeft, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from "../../../lib/utils";
@@ -44,6 +44,17 @@ export default function BillingPage() {
         { id: crypto.randomUUID(), description: "", quantity: 1, unit_price: 0 }
     ]);
     const [notifyClient, setNotifyClient] = useState(false);
+    const [ivaPercentage, setIvaPercentage] = useState(21);
+
+    useEffect(() => {
+        try {
+            const stored = JSON.parse(localStorage.getItem('vantra_settings') || '{}');
+            const defaultTax = stored?.billing?.taxRate;
+            setIvaPercentage(defaultTax === 10.5 ? 10.5 : 21);
+        } catch {
+            setIvaPercentage(21);
+        }
+    }, []);
 
     // Flow State
     const [status, setStatus] = useState('idle'); // idle, submitting, success, error
@@ -122,6 +133,7 @@ export default function BillingPage() {
             const payload = {
                 clientId: selectedClient.id,
                 period,
+                iva_percentage: ivaPercentage,
                 items: items.map(i => ({
                     description: i.description,
                     quantity: Number(i.quantity),
@@ -395,6 +407,18 @@ export default function BillingPage() {
                                                                             className="h-14"
                                                                         />
                                                                     </div>
+                                                                </div>
+
+                                                                <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                                                                    <Label className="text-base mb-2 block">Porcentaje de IVA</Label>
+                                                                    <select
+                                                                        value={ivaPercentage}
+                                                                        onChange={(e) => setIvaPercentage(Number(e.target.value))}
+                                                                        className="w-full h-14 px-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white hover:border-primary/40 text-slate-700 font-medium"
+                                                                    >
+                                                                        <option value={21}>21%</option>
+                                                                        <option value={10.5}>10.5%</option>
+                                                                    </select>
                                                                 </div>
 
                                                                 <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-primary/10 border-primary/30 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>

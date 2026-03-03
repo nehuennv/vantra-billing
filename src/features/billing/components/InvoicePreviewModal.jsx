@@ -225,6 +225,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
     const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
     const [items, setItems] = useState([]);
     const [notifyClient, setNotifyClient] = useState(false);
+    const [ivaPercentage, setIvaPercentage] = useState(21);
 
     // Flow State
     const [status, setStatus] = useState('idle'); // idle, submitting, success, error
@@ -247,6 +248,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                 setPeriod(initialData.period || new Date().toISOString().slice(0, 7));
                 setItems(initialData.items || []);
                 setNotifyClient(initialData.options?.notifyClient || false);
+                setIvaPercentage(initialData.iva_percentage || 21);
             } else {
                 if (initialItems && initialItems.length > 0) {
                     const mappedItems = initialItems.map(svc => ({
@@ -261,6 +263,14 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                 }
                 setPeriod(new Date().toISOString().slice(0, 7));
                 setNotifyClient(false);
+
+                try {
+                    const stored = JSON.parse(localStorage.getItem('vantra_settings') || '{}');
+                    const defaultTax = stored?.billing?.taxRate;
+                    setIvaPercentage(defaultTax === 10.5 ? 10.5 : 21);
+                } catch {
+                    setIvaPercentage(21);
+                }
             }
         }
     }, [open, initialItems, initialData, client]);
@@ -318,6 +328,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
             const payload = {
                 clientId: client?.id,
                 period,
+                iva_percentage: ivaPercentage,
                 items: items.map(i => ({
                     description: i.description,
                     quantity: Number(i.quantity),
@@ -450,6 +461,19 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                             )}
                                         />
                                     </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-slate-700 font-medium">IVA</Label>
+                                    <select
+                                        value={ivaPercentage}
+                                        onChange={(e) => setIvaPercentage(Number(e.target.value))}
+                                        className="w-full h-11 px-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50 hover:bg-white focus:bg-white text-slate-700 font-medium"
+                                        disabled={readOnly}
+                                    >
+                                        <option value={21}>21%</option>
+                                        <option value={10.5}>10.5%</option>
+                                    </select>
                                 </div>
 
                                 {!readOnly && (
