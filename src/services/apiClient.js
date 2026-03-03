@@ -71,7 +71,7 @@ export const authAPI = {
     updateProfile: (data) => {
         const payload = {
             email: data.email,
-            name: data.name
+            username: data.name // Backend uses 'username' mapped to local 'name' state
         };
         return request('/v1/account/profile', 'PATCH', payload);
     }
