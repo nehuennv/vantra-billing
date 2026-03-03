@@ -106,7 +106,7 @@ export default function SettingsPage() {
 
         try {
             if (section === 'profile') {
-                // 1. Send ONLY email to backend (API handles filtering)
+                // 1. Send profile data (email and name) to backend
                 try {
                     await authAPI.updateProfile(formData.profile);
                 } catch (apiError) {

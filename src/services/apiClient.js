@@ -69,10 +69,9 @@ export const authAPI = {
         return request('/v1/account/change-password', 'POST', data);
     },
     updateProfile: (data) => {
-        // CRITICAL: Backend does not support 'name' column yet.
-        // We filter the payload to ONLY send 'email' to avoid 400/500 errors.
         const payload = {
-            email: data.email
+            email: data.email,
+            name: data.name
         };
         return request('/v1/account/profile', 'PATCH', payload);
     }
