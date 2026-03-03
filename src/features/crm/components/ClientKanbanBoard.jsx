@@ -6,7 +6,7 @@ import { Button } from "../../../components/ui/Button";
 import { Plus } from "lucide-react";
 import { createPortal } from 'react-dom';
 
-export function ClientKanbanBoard({ columns, tasks, onTasksChange, onAddColumn, onDeleteColumn, onEditColumn }) {
+export function ClientKanbanBoard({ columns, tasks, onTasksChange, onAddColumn, onDeleteColumn, onEditColumn, onAddClient }) {
     const [activeId, setActiveId] = useState(null);
 
     const sensors = useSensors(
@@ -85,6 +85,7 @@ export function ClientKanbanBoard({ columns, tasks, onTasksChange, onAddColumn, 
                                 tasks={getTasksByColumn(col.id)}
                                 onDelete={onDeleteColumn}
                                 onEdit={onEditColumn}
+                                onAddClient={onAddClient}
                             />
                         ))}
 

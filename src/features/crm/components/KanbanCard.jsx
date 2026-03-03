@@ -38,35 +38,20 @@ export function KanbanCard({ client, isOverlay }) {
                     ${isOverlay ? 'shadow-2xl ring-2 ring-primary/20 cursor-grabbing' : 'hover:bg-slate-50/80 hover:ring-slate-300 transition-all duration-200 cursor-pointer'}
                 `}
             >
-                <CardContent className="p-3.5">
-                    {/* Header */}
-                    <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2 w-full">
-                            <GripVertical className={`h-4 w-4 transition-colors shrink-0 ${isOverlay ? 'text-primary' : 'text-slate-200 group-hover:text-slate-400'}`} />
-                            <h3 className="font-bold text-slate-800 text-sm leading-tight line-clamp-2">
+                <CardContent className="p-2.5">
+                    {/* Minimalist Card Content */}
+                    <div className="flex items-center gap-2 w-full">
+                        <GripVertical className={`h-4 w-4 transition-colors shrink-0 ${isOverlay ? 'text-primary' : 'text-slate-200 group-hover:text-slate-400'}`} />
+                        <div className="flex flex-col overflow-hidden">
+                            <h3 className="font-bold text-slate-800 text-sm leading-tight truncate">
                                 {client.name}
                             </h3>
+                            {client.cuit && (
+                                <p className="text-[11px] font-medium text-slate-400 mt-0.5 truncate flex items-center gap-1">
+                                    <span className="opacity-70">CUIT/CUIL:</span> {client.cuit}
+                                </p>
+                            )}
                         </div>
-                    </div>
-
-                    {/* Subtext */}
-                    {client.businessName && (
-                        <p className="text-[11px] font-medium text-slate-400 mb-3 pl-6 uppercase tracking-wider line-clamp-1">
-                            {client.businessName}
-                        </p>
-                    )}
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
-                        <Badge variant="secondary" className="bg-slate-50 text-slate-500 border-slate-100 text-[10px] px-1.5 h-5 font-medium">
-                            {client.servicePlan || 'General'}
-                        </Badge>
-
-                        {client.debt > 0 && (
-                            <Badge variant="outline" className="bg-rose-50 text-rose-600 border-rose-100 text-[10px] px-1.5 py-0 h-5">
-                                ${client.debt.toLocaleString()}
-                            </Badge>
-                        )}
                     </div>
                 </CardContent>
             </Card>

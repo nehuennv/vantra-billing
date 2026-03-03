@@ -6,7 +6,7 @@ import { Label } from "../../../components/ui/Label";
 import { Textarea } from "../../../components/ui/Textarea"; // Assuming Textarea exists or using Input
 import { Plus, X } from "lucide-react";
 
-export function CreateClientModal({ isOpen, onClose, columns, onCreate, onUpdate, onAddColumn, clientToEdit = null }) {
+export function CreateClientModal({ isOpen, onClose, columns, onCreate, onUpdate, onAddColumn, clientToEdit = null, initialStatus = 'potential' }) {
     const [formData, setFormData] = useState({
         // Identity
         businessName: '', // Razon Social (company_name) - Required
@@ -52,7 +52,7 @@ export function CreateClientModal({ isOpen, onClose, columns, onCreate, onUpdate
                     province: clientToEdit.province || '',
 
                     category: clientToEdit.category || '',
-                    status: clientToEdit.status || 'potential',
+                    status: clientToEdit.status || initialStatus,
                     tax_condition: clientToEdit.tax_condition || 'responsable_inscripto',
 
                     internalObs: clientToEdit.internalObs || ''
@@ -71,13 +71,13 @@ export function CreateClientModal({ isOpen, onClose, columns, onCreate, onUpdate
                     zipCode: '',
                     province: '',
                     category: '',
-                    status: 'potential',
+                    status: initialStatus,
                     tax_condition: 'responsable_inscripto',
                     internalObs: ''
                 });
             }
         }
-    }, [isOpen, clientToEdit]);
+    }, [isOpen, clientToEdit, initialStatus]);
 
     const [isAddingStatus, setIsAddingStatus] = useState(false);
     const [newStatusName, setNewStatusName] = useState("");

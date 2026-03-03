@@ -4,7 +4,7 @@ import { MoreHorizontal, Plus, Trash2, Edit2 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { KanbanCard } from "./KanbanCard";
 
-export function KanbanColumn({ column, tasks, onDelete, onEdit }) {
+export function KanbanColumn({ column, tasks, onDelete, onEdit, onAddClient }) {
     const { setNodeRef } = useDroppable({
         id: column.id,
     });
@@ -41,9 +41,9 @@ export function KanbanColumn({ column, tasks, onDelete, onEdit }) {
                     <KanbanCard key={client.id} client={client} />
                 ))}
 
-                {/* Botón rápido para agregar tarea en esta columna */}
-                <Button variant="ghost" className="w-full justify-center text-xs text-slate-400 hover:text-primary hover:bg-white py-3 border border-transparent hover:border-slate-100 dashed">
-                    <Plus className="h-3 w-3 mr-1.5" /> Añadir tarea
+                {/* Botón rápido para agregar cliente en esta columna */}
+                <Button onClick={() => onAddClient(column)} variant="ghost" className="w-full justify-center text-xs text-slate-400 hover:text-primary hover:bg-white py-2 border border-transparent hover:border-slate-100 dashed">
+                    <Plus className="h-3 w-3 mr-1.5" /> Añadir cliente
                 </Button>
             </div>
         </div>

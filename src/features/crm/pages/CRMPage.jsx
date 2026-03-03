@@ -34,6 +34,7 @@ export default function CRMPage() {
     const [clients, setClients] = useState([]);
     const [columns, setColumns] = useState(DEFAULT_COLUMNS);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [selectedCreationStatus, setSelectedCreationStatus] = useState('potential');
     const [isLoading, setIsLoading] = useState(true);
 
     // Filters
@@ -347,7 +348,10 @@ export default function CRMPage() {
                     </div>
 
                     <Button
-                        onClick={() => setIsCreateModalOpen(true)}
+                        onClick={() => {
+                            setSelectedCreationStatus('potential');
+                            setIsCreateModalOpen(true);
+                        }}
                         size="sm"
                         className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm h-9"
                     >
@@ -538,6 +542,10 @@ export default function CRMPage() {
                                     onAddColumn={handleAddColumn}
                                     onDeleteColumn={handleDeleteColumn}
                                     onEditColumn={handleEditColumn}
+                                    onAddClient={(column) => {
+                                        setSelectedCreationStatus(column.id);
+                                        setIsCreateModalOpen(true);
+                                    }}
                                 />
                             </div>
                         )}
@@ -551,6 +559,7 @@ export default function CRMPage() {
                 columns={columns}
                 onCreate={handleAddClient}
                 onAddColumn={handleAddColumn}
+                initialStatus={selectedCreationStatus}
             />
         </PageTransition>
     );
