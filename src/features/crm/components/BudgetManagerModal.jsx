@@ -45,7 +45,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
 
     // New Custom Item State
     const [showCustomForm, setShowCustomForm] = useState(false);
-    const [customItem, setCustomItem] = useState({ name: '', price: '', quantity: 1 });
+    const [customItem, setCustomItem] = useState({ name: '', description: '', price: '', quantity: 1 });
 
     // Accordion State for Packages (Catalog)
     const [expandedPackages, setExpandedPackages] = useState({});
@@ -204,6 +204,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
             id: `temp-custom-${Math.random()}`,
             catalog_item_id: null, // Unknown yet
             name: customItem.name,
+            description: customItem.description || '',
             price: Number(customItem.price),
             quantity: Number(customItem.quantity || 1),
             type: 'single',
@@ -212,7 +213,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
         };
 
         setBudgetItems(prev => [...prev, newService]);
-        setCustomItem({ name: '', price: '', quantity: 1 });
+        setCustomItem({ name: '', description: '', price: '', quantity: 1 });
         setShowCustomForm(false);
     };
 
@@ -356,6 +357,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                     origin_plan_id: null, // Single items are NOT part of a plan by default.
 
                     name: item.name,
+                    description: item.description || null,
                     unit_price: item.price,
                     quantity: item.quantity || 1,
                     service_type: 'recurring',
@@ -689,42 +691,144 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                     </div>
 
                     {/* RIGHT: Active Budget */}
-                    <div className="w-1/2 p-4 flex flex-col bg-white">
-                        <div className="flex justify-between items-center mb-4">
-                            <h4 className="font-bold text-slate-700">Presupuesto Actual</h4>
-                            <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-bold border border-primary/20">
-                                Total: ${totalBudget.toLocaleString()}
-                            </div>
-                        </div>
+                    <div className="w-1/2 flex flex-col bg-white relative overflow-hidden">
+                        <AnimatePresence mode="wait">
+                            {showCustomForm ? (
+                                /* === FULL-PANEL CUSTOM FORM === */
+                                <motion.div
+                                    key="custom-form-panel"
+                                    initial={{ opacity: 0, x: 40 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 40 }}
+                                    transition={{ duration: 0.25, ease: "easeOut" }}
+                                    className="flex flex-col h-full p-5"
+                                >
+                                    {/* Header */}
+                                    <div className="flex justify-between items-center mb-5 shrink-0">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                                                <Plus className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-800">Nuevo Servicio Manual</h4>
+                                                <p className="text-xs text-slate-400">Completa los datos del servicio</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1 }); }}
+                                            className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
 
-                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar mb-4">
-                            {budgetItems.length > 0 ? (
-                                <div>
-                                    <AnimatePresence mode="popLayout">
-                                        {budgetItems.map((item, index) =>
-                                            item.type === 'package' ? renderPackageItem(item, index) : renderSingleItem(item, index)
-                                        )}
-                                    </AnimatePresence>
-                                </div>
+                                    {/* Name (single line input) */}
+                                    <div className="shrink-0 mb-3">
+                                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Nombre</label>
+                                        <input
+                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 bg-white font-medium"
+                                            placeholder="Ej: Instalación 30 metros de cableado"
+                                            value={customItem.name}
+                                            onChange={e => setCustomItem(prev => ({ ...prev, name: e.target.value }))}
+                                            autoFocus
+                                        />
+                                    </div>
+
+                                    {/* Description (large textarea, fills remaining space) */}
+                                    <div className="flex-1 flex flex-col mb-3 min-h-0">
+                                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block shrink-0">Descripción</label>
+                                        <textarea
+                                            className="w-full flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 bg-white resize-none leading-relaxed"
+                                            placeholder="Detalle del servicio, notas adicionales, especificaciones técnicas..."
+                                            value={customItem.description}
+                                            onChange={e => setCustomItem(prev => ({ ...prev, description: e.target.value }))}
+                                        />
+                                    </div>
+
+                                    {/* Price + Quantity Row */}
+                                    <div className="shrink-0 mb-4">
+                                        <div className="flex gap-3">
+                                            <div className="flex-1">
+                                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Precio</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-2.5 text-slate-400 text-sm font-medium">$</span>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 bg-white font-medium"
+                                                        placeholder="0.00"
+                                                        value={customItem.price}
+                                                        onChange={e => setCustomItem(prev => ({ ...prev, price: e.target.value }))}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="w-24">
+                                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Cantidad</label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all text-center bg-white font-medium"
+                                                    value={customItem.quantity || 1}
+                                                    onChange={e => setCustomItem(prev => ({ ...prev, quantity: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Submit */}
+                                    <div className="shrink-0 flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1 border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl h-11"
+                                            onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1 }); }}
+                                        >
+                                            Cancelar
+                                        </Button>
+                                        <Button
+                                            className="flex-[2] bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl h-11 font-semibold"
+                                            disabled={!customItem.name || !customItem.price}
+                                            onClick={handleAddCustomItem}
+                                        >
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Agregar al Listado
+                                        </Button>
+                                    </div>
+                                </motion.div>
                             ) : (
-                                <div className="h-48 flex flex-col items-center justify-center text-slate-400 text-center p-8 border-2 border-dashed border-slate-100 rounded-xl">
-                                    <p className="text-sm">No hay servicios en el presupuesto.</p>
-                                    <p className="text-xs mt-1">Agrega servicios o planes desde el panel izquierdo.</p>
-                                </div>
-                            )}
-                        </div>
+                                /* === NORMAL BUDGET VIEW === */
+                                <motion.div
+                                    key="budget-list-panel"
+                                    initial={{ opacity: 0, x: -40 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -40 }}
+                                    transition={{ duration: 0.25, ease: "easeOut" }}
+                                    className="flex flex-col h-full p-4"
+                                >
+                                    <div className="flex justify-between items-center mb-4 shrink-0">
+                                        <h4 className="font-bold text-slate-700">Presupuesto Actual</h4>
+                                        <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-bold border border-primary/20">
+                                            Total: ${totalBudget.toLocaleString()}
+                                        </div>
+                                    </div>
 
-                        {/* CUSTOM ITEM FORM (Pinned to Bottom) */}
-                        <div className="mt-auto border-t border-slate-100 pt-4">
-                            <AnimatePresence mode="wait">
-                                {!showCustomForm ? (
-                                    <motion.div
-                                        key="button"
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: 10 }}
-                                        transition={{ duration: 0.2 }}
-                                    >
+                                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar mb-4">
+                                        {budgetItems.length > 0 ? (
+                                            <div>
+                                                <AnimatePresence mode="popLayout">
+                                                    {budgetItems.map((item, index) =>
+                                                        item.type === 'package' ? renderPackageItem(item, index) : renderSingleItem(item, index)
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                        ) : (
+                                            <div className="h-48 flex flex-col items-center justify-center text-slate-400 text-center p-8 border-2 border-dashed border-slate-100 rounded-xl">
+                                                <p className="text-sm">No hay servicios en el presupuesto.</p>
+                                                <p className="text-xs mt-1">Agrega servicios o planes desde el panel izquierdo.</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Button to open Custom Form */}
+                                    <div className="mt-auto border-t border-slate-100 pt-4 shrink-0">
                                         <Button
                                             variant="outline"
                                             className="w-full border-dashed border-slate-300 text-slate-500 hover:text-primary hover:border-primary hover:bg-slate-50"
@@ -732,72 +836,10 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                                         >
                                             <Plus className="h-4 w-4 mr-2" /> Servicio Manual
                                         </Button>
-                                    </motion.div>
-                                ) : (
-                                    <motion.div
-                                        key="form"
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: 20 }}
-                                        transition={{ duration: 0.3, ease: "easeOut" }}
-                                        className="bg-slate-50 p-3 rounded-xl border border-slate-200"
-                                    >
-                                        <div className="flex justify-between items-center mb-2">
-                                            <p className="text-xs font-bold text-slate-500 uppercase">Nuevo Servicio Manual</p>
-                                            <button onClick={() => setShowCustomForm(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
-                                        </div>
-                                        <div className="space-y-2 mb-2">
-                                            <textarea
-                                                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 resize-none overflow-hidden leading-relaxed"
-                                                placeholder="Descripción del servicio (ej: Instalación de fibra óptica con tendido exterior...)"
-                                                value={customItem.name}
-                                                onChange={e => {
-                                                    setCustomItem(prev => ({ ...prev, name: e.target.value }));
-                                                    e.target.style.height = 'auto';
-                                                    e.target.style.height = e.target.scrollHeight + 'px';
-                                                }}
-                                                onFocus={e => {
-                                                    e.target.style.height = 'auto';
-                                                    e.target.style.height = e.target.scrollHeight + 'px';
-                                                }}
-                                                autoFocus
-                                                rows={2}
-                                                style={{ minHeight: '40px', maxHeight: '100px' }}
-                                            />
-                                            <div className="flex gap-2">
-                                                <div className="flex-1 relative">
-                                                    <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
-                                                    <input
-                                                        type="number"
-                                                        className="w-full pl-6 pr-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary transition-all placeholder:text-slate-400"
-                                                        placeholder="Precio"
-                                                        value={customItem.price}
-                                                        onChange={e => setCustomItem(prev => ({ ...prev, price: e.target.value }))}
-                                                    />
-                                                </div>
-                                                <div className="w-20">
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary transition-all text-center"
-                                                        placeholder="Cant."
-                                                        value={customItem.quantity || 1}
-                                                        onChange={e => setCustomItem(prev => ({ ...prev, quantity: e.target.value }))}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <Button
-                                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
-                                            disabled={!customItem.name || !customItem.price}
-                                            onClick={handleAddCustomItem}
-                                        >
-                                            Agregar al Listado
-                                        </Button>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
 
