@@ -47,10 +47,9 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
     const [showCustomForm, setShowCustomForm] = useState(false);
     const [customItem, setCustomItem] = useState({ name: '', description: '', price: '', quantity: 1, iva_percentage: 21 });
 
-    // IVA options
+    // IVA options (backend values: -1=No Gravado, 0/10.5/21/27=percentage)
     const IVA_OPTIONS = [
-        { value: 'no_gravado', label: 'No gravado' },
-        { value: 'exento', label: 'Exento' },
+        { value: -1, label: 'No gravado' },
         { value: 0, label: '0%' },
         { value: 10.5, label: '10.5%' },
         { value: 21, label: '21%' },
@@ -518,8 +517,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                     <select
                         value={item.iva_percentage ?? 21}
                         onChange={e => {
-                            const val = e.target.value;
-                            const parsed = isNaN(Number(val)) ? val : Number(val);
+                            const parsed = Number(e.target.value);
                             setBudgetItems(prev => prev.map((it, i) => i === index ? { ...it, iva_percentage: parsed } : it));
                         }}
                         className="h-8 pl-2 pr-1 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-md bg-white outline-none focus:border-primary transition-all cursor-pointer"
@@ -662,8 +660,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                                             <select
                                                 value={customItem.iva_percentage}
                                                 onChange={e => {
-                                                    const val = e.target.value;
-                                                    setCustomItem(prev => ({ ...prev, iva_percentage: isNaN(Number(val)) ? val : Number(val) }));
+                                                    setCustomItem(prev => ({ ...prev, iva_percentage: Number(e.target.value) }));
                                                 }}
                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all bg-white font-medium cursor-pointer appearance-none"
                                             >
