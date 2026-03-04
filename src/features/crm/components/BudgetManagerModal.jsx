@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Plus, Trash2, Search, CheckCircle2, LayoutGrid, Package, Layers, ChevronRight, AlertCircle, Wifi, Zap, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield } from 'lucide-react';
+import { X, Plus, Trash2, Search, CheckCircle2, LayoutGrid, Package, Layers, ChevronRight, AlertCircle, Wifi, Zap, Globe, Monitor, Smartphone, Server, Database, Cloud, Shield, Percent } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../components/ui/Dialog';
 import { catalogAPI, combosAPI, servicesAPI } from '../../../services/apiClient';
@@ -45,7 +45,17 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
 
     // New Custom Item State
     const [showCustomForm, setShowCustomForm] = useState(false);
-    const [customItem, setCustomItem] = useState({ name: '', description: '', price: '', quantity: 1 });
+    const [customItem, setCustomItem] = useState({ name: '', description: '', price: '', quantity: 1, iva_percentage: 21 });
+
+    // IVA options
+    const IVA_OPTIONS = [
+        { value: 'no_gravado', label: 'No gravado' },
+        { value: 'exento', label: 'Exento' },
+        { value: 0, label: '0%' },
+        { value: 10.5, label: '10.5%' },
+        { value: 21, label: '21%' },
+        { value: 27, label: '27%' },
+    ];
 
     // Accordion State for Packages (Catalog)
     const [expandedPackages, setExpandedPackages] = useState({});
@@ -190,6 +200,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
             name: service.name,
             price: Number(service.default_price),
             quantity: 1,
+            iva_percentage: 21,
             type: 'single',
             icon: inferIcon(service.name),
             shouldCreateInCatalog: false
@@ -207,13 +218,14 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
             description: customItem.description || '',
             price: Number(customItem.price),
             quantity: Number(customItem.quantity || 1),
+            iva_percentage: customItem.iva_percentage,
             type: 'single',
             icon: inferIcon(customItem.name),
             shouldCreateInCatalog: true // Flag!
         };
 
         setBudgetItems(prev => [...prev, newService]);
-        setCustomItem({ name: '', description: '', price: '', quantity: 1 });
+        setCustomItem({ name: '', description: '', price: '', quantity: 1, iva_percentage: 21 });
         setShowCustomForm(false);
     };
 
@@ -360,6 +372,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                     description: item.description || null,
                     unit_price: item.price,
                     quantity: item.quantity || 1,
+                    iva_percentage: item.iva_percentage ?? 21,
                     service_type: 'recurring',
                     is_active: true,
 
@@ -413,7 +426,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                             <Package className="h-4 w-4" />
                         </div>
                         <div>
-                            <p className="font-bold text-slate-800 text-sm">{item.name}</p>
+                            <p className="font-bold text-slate-800 text-sm truncate max-w-[180px]" title={item.name}>{item.name}</p>
                             <p className="text-xs text-slate-500">{item.items.length} servicios incluidos</p>
                         </div>
                     </div>
@@ -488,19 +501,35 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                     <div className={`h-9 w-9 rounded-full border flex items-center justify-center ${item.shouldCreateInCatalog ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
                         <Icon className="h-4 w-4" />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                         <p className="font-medium text-slate-800 text-sm flex items-center gap-2">
-                            {item.name}
-                            {item.shouldCreateInCatalog && <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded-full">NUEVO</span>}
+                            <span className="truncate max-w-[160px] inline-block align-bottom" title={item.name}>{item.name}</span>
+                            {item.shouldCreateInCatalog && <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded-full shrink-0">NUEVO</span>}
                         </p>
-                        <div className="text-xs text-slate-500 flex items-center gap-2">
+                        <div className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
                             <span>${(item.price || 0).toLocaleString()} c/u</span>
                             {item.type === 'recurring' && <span className="text-slate-400">/ mes</span>}
                         </div>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                    {/* IVA Selector */}
+                    <select
+                        value={item.iva_percentage ?? 21}
+                        onChange={e => {
+                            const val = e.target.value;
+                            const parsed = isNaN(Number(val)) ? val : Number(val);
+                            setBudgetItems(prev => prev.map((it, i) => i === index ? { ...it, iva_percentage: parsed } : it));
+                        }}
+                        className="h-8 pl-2 pr-1 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-md bg-white outline-none focus:border-primary transition-all cursor-pointer"
+                        title="IVA"
+                    >
+                        {IVA_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                    </select>
+
                     {/* Quantity Selector */}
                     <div className="flex items-center border border-slate-200 rounded-md overflow-hidden bg-white h-8">
                         <button
@@ -576,7 +605,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1 }); }}
+                                    onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1, iva_percentage: 21 }); }}
                                     className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
                                 >
                                     <X className="h-5 w-5" />
@@ -626,6 +655,23 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                                                 onChange={e => setCustomItem(prev => ({ ...prev, quantity: e.target.value }))}
                                             />
                                         </div>
+
+                                        {/* IVA */}
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">IVA</label>
+                                            <select
+                                                value={customItem.iva_percentage}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setCustomItem(prev => ({ ...prev, iva_percentage: isNaN(Number(val)) ? val : Number(val) }));
+                                                }}
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all bg-white font-medium cursor-pointer appearance-none"
+                                            >
+                                                {IVA_OPTIONS.map(opt => (
+                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
 
                                     {/* Preview Card (bottom) */}
@@ -665,7 +711,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                                 <Button
                                     variant="ghost"
                                     className="h-11 px-5"
-                                    onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1 }); }}
+                                    onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1, iva_percentage: 21 }); }}
                                 >
                                     Volver al Presupuesto
                                 </Button>
