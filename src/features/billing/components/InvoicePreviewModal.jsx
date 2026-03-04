@@ -255,7 +255,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                         description: svc.name,
                         quantity: 1,
                         unit_price: Number(svc.price) || 0,
-                        iva_percentage: svc.iva_percentage ?? 21
+                        iva_percentage: svc.iva_percentage != null ? Number(svc.iva_percentage) : 21
                     }));
                     setItems(mappedItems);
                 } else {

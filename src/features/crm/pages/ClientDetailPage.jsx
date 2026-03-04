@@ -215,7 +215,7 @@ export default function ClientDetailPage() {
                             name: s.name,
                             price: Number(s.unit_price || s.price), // V2 uses unit_price
                             quantity: Number(s.quantity || 1), // Fix: Ensure quantity is mapped
-                            iva_percentage: s.iva_percentage,
+                            iva_percentage: s.iva_percentage != null ? Number(s.iva_percentage) : 21,
                             type: 'recurring', // Default
                             icon: s.icon || 'Wifi',
                             origin_combo_id: s.origin_combo_id, // Keep track of origin
@@ -304,7 +304,7 @@ export default function ClientDetailPage() {
                 name: s.name,
                 price: Number(s.unit_price || s.price),
                 quantity: Number(s.quantity || 1), // Fix: Ensure quantity is mapped
-                iva_percentage: s.iva_percentage,
+                iva_percentage: s.iva_percentage != null ? Number(s.iva_percentage) : 21,
                 type: 'recurring',
                 icon: s.icon || 'Wifi',
                 origin_combo_id: s.origin_combo_id,
