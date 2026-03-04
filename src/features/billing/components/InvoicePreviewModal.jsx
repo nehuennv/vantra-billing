@@ -543,16 +543,27 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                 <tbody className="divide-y divide-slate-100">
                                     {items.map((item, idx) => (
                                         <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
-                                            <td className="p-3 pl-6">
-                                                <Input
+                                            <td className="p-3 pl-6 align-top">
+                                                <textarea
                                                     value={item.description}
-                                                    onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                                                    onChange={(e) => {
+                                                        handleItemChange(idx, 'description', e.target.value);
+                                                        // Auto-resize
+                                                        e.target.style.height = 'auto';
+                                                        e.target.style.height = e.target.scrollHeight + 'px';
+                                                    }}
+                                                    onFocus={(e) => {
+                                                        e.target.style.height = 'auto';
+                                                        e.target.style.height = e.target.scrollHeight + 'px';
+                                                    }}
                                                     placeholder="Descripción del servicio..."
-                                                    className="border-transparent bg-transparent shadow-none px-0 h-auto py-2 focus:ring-0 placeholder:text-slate-300 font-medium text-slate-700 text-base"
+                                                    className="w-full border-transparent bg-transparent shadow-none px-0 py-2 focus:ring-0 focus:outline-none placeholder:text-slate-300 font-medium text-slate-700 text-base resize-none overflow-hidden leading-relaxed"
                                                     readOnly={readOnly}
+                                                    rows={1}
+                                                    style={{ minHeight: '36px', maxHeight: '120px' }}
                                                 />
                                             </td>
-                                            <td className="p-3">
+                                            <td className="p-3 align-top pt-4">
                                                 <Input
                                                     type="number"
                                                     value={item.quantity}
@@ -563,7 +574,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                                     min="1"
                                                 />
                                             </td>
-                                            <td className="p-3">
+                                            <td className="p-3 align-top pt-4">
                                                 <div className="relative">
                                                     <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
                                                     <Input
@@ -577,11 +588,11 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                                     />
                                                 </div>
                                             </td>
-                                            <td className="p-3 pr-6 text-right font-bold text-slate-700 tabular-nums text-base">
+                                            <td className="p-3 pr-6 text-right font-bold text-slate-700 tabular-nums text-base align-top pt-4">
                                                 {formatCurrency(Number(item.quantity) * Number(item.unit_price))}
                                             </td>
                                             {!readOnly && (
-                                                <td className="p-3 text-center">
+                                                <td className="p-3 text-center align-top pt-3">
                                                     <button
                                                         onClick={() => handleRemoveItem(idx)}
                                                         className="text-slate-300 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"

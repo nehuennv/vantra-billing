@@ -746,18 +746,26 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                                             <p className="text-xs font-bold text-slate-500 uppercase">Nuevo Servicio Manual</p>
                                             <button onClick={() => setShowCustomForm(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
                                         </div>
-                                        <div className="flex gap-2 mb-2">
-                                            <div className="flex-[2]">
-                                                <input
-                                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary transition-all placeholder:text-slate-400"
-                                                    placeholder="Descripción (ej: Instalación)"
-                                                    value={customItem.name}
-                                                    onChange={e => setCustomItem(prev => ({ ...prev, name: e.target.value }))}
-                                                    autoFocus
-                                                />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="relative">
+                                        <div className="space-y-2 mb-2">
+                                            <textarea
+                                                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 resize-none overflow-hidden leading-relaxed"
+                                                placeholder="Descripción del servicio (ej: Instalación de fibra óptica con tendido exterior...)"
+                                                value={customItem.name}
+                                                onChange={e => {
+                                                    setCustomItem(prev => ({ ...prev, name: e.target.value }));
+                                                    e.target.style.height = 'auto';
+                                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                                }}
+                                                onFocus={e => {
+                                                    e.target.style.height = 'auto';
+                                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                                }}
+                                                autoFocus
+                                                rows={2}
+                                                style={{ minHeight: '40px', maxHeight: '100px' }}
+                                            />
+                                            <div className="flex gap-2">
+                                                <div className="flex-1 relative">
                                                     <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
                                                     <input
                                                         type="number"
@@ -767,16 +775,16 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                                                         onChange={e => setCustomItem(prev => ({ ...prev, price: e.target.value }))}
                                                     />
                                                 </div>
-                                            </div>
-                                            <div className="w-20">
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary transition-all text-center"
-                                                    placeholder="Cant."
-                                                    value={customItem.quantity || 1}
-                                                    onChange={e => setCustomItem(prev => ({ ...prev, quantity: e.target.value }))}
-                                                />
+                                                <div className="w-20">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-primary transition-all text-center"
+                                                        placeholder="Cant."
+                                                        value={customItem.quantity || 1}
+                                                        onChange={e => setCustomItem(prev => ({ ...prev, quantity: e.target.value }))}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                         <Button

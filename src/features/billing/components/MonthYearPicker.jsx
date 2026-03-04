@@ -51,22 +51,22 @@ export function MonthYearPicker({ value, onChange, className }) {
     const displayMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
     return (
-        <div className={cn("flex flex-col sm:flex-row gap-2 w-full", className)}>
+        <div className={cn("flex flex-col gap-2 w-full", className)}>
             {/* Control de Mes */}
-            <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-1 shadow-sm flex-1">
+            <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-1 shadow-sm w-full">
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={handlePrevMonth}
-                    className="h-9 w-9 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                    className="h-9 w-9 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors shrink-0"
                     type="button"
                 >
                     <ChevronLeft className="h-5 w-5" />
                 </Button>
 
-                <div className="flex items-center gap-2 px-2 selection:bg-primary/10">
-                    <Calendar className="h-4 w-4 text-primary mb-0.5" />
-                    <span className="font-semibold text-slate-700 min-w-[100px] text-center select-none capitalize">
+                <div className="flex items-center gap-2 px-2 selection:bg-primary/10 min-w-0">
+                    <Calendar className="h-4 w-4 text-primary shrink-0" />
+                    <span className="font-semibold text-slate-700 text-center select-none capitalize truncate">
                         {displayMonth}
                     </span>
                 </div>
@@ -75,7 +75,7 @@ export function MonthYearPicker({ value, onChange, className }) {
                     variant="ghost"
                     size="icon"
                     onClick={handleNextMonth}
-                    className="h-9 w-9 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                    className="h-9 w-9 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors shrink-0"
                     type="button"
                 >
                     <ChevronRight className="h-5 w-5" />
@@ -83,12 +83,12 @@ export function MonthYearPicker({ value, onChange, className }) {
             </div>
 
             {/* Control de Año */}
-            <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-1 shadow-sm w-full sm:w-auto min-w-[140px]">
+            <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-1 shadow-sm w-full">
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={handlePrevYear}
-                    className="h-9 w-9 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                    className="h-9 w-9 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors shrink-0"
                     type="button"
                 >
                     <ChevronLeft className="h-5 w-5" />
@@ -102,7 +102,7 @@ export function MonthYearPicker({ value, onChange, className }) {
                     variant="ghost"
                     size="icon"
                     onClick={handleNextYear}
-                    className="h-9 w-9 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                    className="h-9 w-9 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors shrink-0"
                     type="button"
                 >
                     <ChevronRight className="h-5 w-5" />
