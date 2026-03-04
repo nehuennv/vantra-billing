@@ -95,8 +95,10 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                     id: s.id,
                     catalog_item_id: s.catalog_item_id || s.origin_plan_id,
                     name: s.name,
+                    description: s.description || '',
                     price: Number(s.unit_price || s.price),
                     quantity: Number(s.quantity || 1),
+                    iva_percentage: s.iva_percentage ?? 21,
                     icon: s.icon,
                     shouldCreateInCatalog: false
                 });
@@ -130,6 +132,7 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                         name: i.name,
                         price: Number(i.unit_price || i.price),
                         quantity: Number(i.quantity || 1),
+                        iva_percentage: i.iva_percentage ?? 21,
                         icon: i.icon
                     })),
                     quantity: 1 // Packages themselves are usually qty 1
