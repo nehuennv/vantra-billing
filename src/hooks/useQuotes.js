@@ -25,11 +25,14 @@ export function useQuotes(clientId) {
         }
     }, [clientId, toast]);
 
-    const sendQuote = async () => {
+    const sendQuote = async ({ commercialConditions } = {}) => {
         if (!clientId) return false;
 
         try {
-            const promise = quotesAPI.sendQuote(clientId).then(res => {
+            const body = {};
+            if (commercialConditions) body.commercial_conditions = commercialConditions;
+
+            const promise = quotesAPI.sendQuote(clientId, body).then(res => {
                 // Autorefrescar el listado luego de crearlo exitosamente
                 fetchQuotes();
                 return res;
@@ -82,11 +85,14 @@ export function useQuotes(clientId) {
         }
     };
 
-    const downloadQuoteOnly = async () => {
+    const downloadQuoteOnly = async ({ commercialConditions } = {}) => {
         if (!clientId) return;
 
         try {
-            const promise = quotesAPI.generateQuote(clientId).then(({ blob, filename }) => {
+            const body = {};
+            if (commercialConditions) body.commercial_conditions = commercialConditions;
+
+            const promise = quotesAPI.generateQuote(clientId, body).then(({ blob, filename }) => {
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;

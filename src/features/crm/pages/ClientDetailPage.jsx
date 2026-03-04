@@ -37,6 +37,7 @@ export default function ClientDetailPage() {
     const [client, setClient] = useState(null);
     const [services, setServices] = useState([]);
     const [packages, setPackages] = useState([]);
+    const [commercialConditions, setCommercialConditions] = useState('');
     const [invoices, setInvoices] = useState([]);
     const [statuses, setStatuses] = useState([]);
     const [isBudgetManagerOpen, setIsBudgetManagerOpen] = useState(false);
@@ -716,7 +717,7 @@ export default function ClientDetailPage() {
                     <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
 
                     <Button
-                        onClick={() => downloadQuoteOnly()}
+                        onClick={() => downloadQuoteOnly({ commercialConditions: commercialConditions || undefined })}
                         disabled={services.length === 0}
                         variant="outline"
                         className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 shadow-sm transition-all px-5 hover:shadow-md hover:-translate-y-0.5"
@@ -727,7 +728,7 @@ export default function ClientDetailPage() {
 
                     <div className="group relative">
                         <Button
-                            onClick={() => sendQuote()}
+                            onClick={() => sendQuote({ commercialConditions: commercialConditions || undefined })}
                             disabled={!client.email_billing && !client.email}
                             className={`bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all px-6 hover:shadow-lg hover:-translate-y-0.5 mt-0 ${(!client.email_billing && !client.email) ? 'opacity-50 cursor-not-allowed hidden md:flex' : ''}`}
                         >
@@ -1095,6 +1096,24 @@ export default function ClientDetailPage() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Condiciones Comerciales */}
+                        {!isLoadingServices && services.length > 0 && (
+                            <div className="px-4 pb-4">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2">
+                                    <FileText className="h-3.5 w-3.5" />
+                                    Condiciones Comerciales
+                                </label>
+                                <textarea
+                                    value={commercialConditions}
+                                    onChange={(e) => setCommercialConditions(e.target.value)}
+                                    placeholder={"PLAZO DE ENTREGA: 48 Hs.\nIMPLEMENTACIÓN: Incluida\nFORMA DE PAGO: Mensual\nVALIDEZ: 15 días"}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all bg-slate-50 hover:bg-white focus:bg-white placeholder:text-slate-300 resize-none leading-relaxed font-medium text-slate-700"
+                                    rows={4}
+                                />
+                                <p className="text-[11px] text-slate-400 mt-1.5">Se incluirá en el PDF del presupuesto. Dejá vacío para omitir.</p>
+                            </div>
+                        )}
 
                         {/* Footer Total */}
                         {

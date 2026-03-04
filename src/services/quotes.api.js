@@ -2,8 +2,8 @@ import { request } from './apiClient';
 
 export const quotesAPI = {
     // Generar y enviar presupuesto por email
-    sendQuote: (clientId) => {
-        return request(`/v1/clients/${clientId}/send-quote`, 'POST');
+    sendQuote: (clientId, body = {}) => {
+        return request(`/v1/clients/${clientId}/send-quote`, 'POST', body);
     },
 
     // Listar presupuestos de un cliente
@@ -76,7 +76,7 @@ export const quotesAPI = {
     },
 
     // Generar presupuesto sin enviar email (devuelve PDF directo)
-    generateQuote: async (clientId) => {
+    generateQuote: async (clientId, body = {}) => {
         const API_URL = import.meta.env.VITE_API_URL;
         const API_KEY = import.meta.env.VITE_API_KEY;
 
@@ -96,7 +96,7 @@ export const quotesAPI = {
         const response = await fetch(url, {
             method: 'POST',
             headers,
-            body: JSON.stringify({})
+            body: JSON.stringify(body)
         });
 
         if (response.status === 401) {
