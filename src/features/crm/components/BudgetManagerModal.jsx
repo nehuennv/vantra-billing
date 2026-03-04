@@ -547,262 +547,295 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
     return (
         <Dialog open={isOpen} onOpenChange={isSubmitting ? () => { } : onClose}>
             <DialogContent className="sm:max-w-6xl w-full h-[80vh] p-0 overflow-hidden flex flex-col gap-0 border-0">
-                <DialogHeader className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-row items-center justify-between space-y-0">
-                    <div>
-                        <DialogTitle className="font-heading font-bold text-lg text-slate-800 text-left">
-                            Gestionar Presupuesto
-                        </DialogTitle>
-                        <DialogDescription className="text-left">
-                            Cliente: {client.name || client.businessName}
-                        </DialogDescription>
-                    </div>
-                </DialogHeader>
-
-                <div className="flex-1 flex overflow-hidden">
-                    {/* LEFT: Catalog */}
-                    <div className="w-1/2 border-r border-slate-100 p-4 flex flex-col bg-slate-50/30">
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder={activeTab === 'services' ? "Buscar producto..." : "Buscar plan..."}
-                                    className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex bg-slate-200/50 p-1 rounded-lg shrink-0">
+                <AnimatePresence mode="wait">
+                    {showCustomForm ? (
+                        /* ============================================================ */
+                        /* ===     FULL-MODAL: MANUAL SERVICE CREATION VIEW          === */
+                        /* ============================================================ */
+                        <motion.div
+                            key="custom-service-modal"
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            transition={{ duration: 0.25, ease: "easeOut" }}
+                            className="flex flex-col h-full"
+                        >
+                            {/* Header */}
+                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-sm">
+                                        <Plus className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <DialogTitle className="font-heading font-bold text-lg text-slate-800 text-left">
+                                            Nuevo Servicio Manual
+                                        </DialogTitle>
+                                        <DialogDescription className="text-left">
+                                            Cliente: {client.name || client.businessName}
+                                        </DialogDescription>
+                                    </div>
+                                </div>
                                 <button
-                                    onClick={() => setActiveTab('services')}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'services' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1 }); }}
+                                    className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
                                 >
-                                    <LayoutGrid className="h-3 w-3" /> Catálogo
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('packages')}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'packages' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    <Package className="h-3 w-3" /> Planes
+                                    <X className="h-5 w-5" />
                                 </button>
                             </div>
-                        </div>
 
-                        <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                            {activeTab === 'services' ? (
-                                availableServices.map(service => {
-                                    const iconName = inferIcon(service.name);
-                                    const Icon = ICON_MAP[iconName] || Zap;
-                                    return (
-                                        <div key={service.id} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-primary/50 hover:shadow-sm transition-all flex justify-between items-center group">
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
-                                                    <Icon className="h-4 w-4" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-slate-800 text-sm">{service.name}</p>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className="text-xs font-bold text-slate-600">${Number(service.default_price).toLocaleString()}</span>
-                                                        {service.sku && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{service.sku}</span>}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 bg-slate-50 hover:bg-primary hover:text-white" onClick={() => handleAddService(service)}>
-                                                <Plus className="h-4 w-4" />
-                                            </Button>
+                            {/* Body: Split Layout */}
+                            <div className="flex-1 flex overflow-hidden">
+                                {/* Left: Fields */}
+                                <div className="w-2/5 border-r border-slate-100 p-6 flex flex-col bg-slate-50/30">
+                                    <div className="space-y-5 flex-1">
+                                        {/* Name */}
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Nombre del Servicio</label>
+                                            <input
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 bg-white font-medium"
+                                                placeholder="Ej: Instalación 30 metros de cableado"
+                                                value={customItem.name}
+                                                onChange={e => setCustomItem(prev => ({ ...prev, name: e.target.value }))}
+                                                autoFocus
+                                            />
                                         </div>
-                                    );
-                                })
-                            ) : (
-                                availablePackages.map(pkg => {
-                                    // Helper function to calculate price if not present
-                                    const getPackagePrice = (p) => {
-                                        if (p.price && !isNaN(Number(p.price)) && Number(p.price) > 0) return Number(p.price);
-                                        // Fallback calculation
-                                        return (p.items || []).reduce((sum, item) => {
-                                            const catItem = catalog.find(c => c.id === item.catalog_item_id);
-                                            return sum + ((catItem?.default_price || 0) * (item.quantity || 1));
-                                        }, 0);
-                                    };
 
-                                    const pkgPrice = getPackagePrice(pkg);
-                                    const isExpanded = expandedPackages[pkg.id];
-
-                                    return (
-                                        <div key={pkg.id} className={`bg-white rounded-lg border transition-all group overflow-hidden ${isExpanded ? 'border-primary/30 shadow-md ring-1 ring-primary/5' : 'border-slate-200 hover:border-primary/50 hover:shadow-sm'}`}>
-                                            <div className="p-3 flex justify-between items-center cursor-pointer" onClick={() => togglePackage(pkg.id)}>
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`p-2 rounded-full flex items-center justify-center transition-colors ${isExpanded ? 'bg-primary/10 text-primary' : 'bg-slate-50 text-slate-400 group-hover:bg-primary/5 group-hover:text-primary'}`}>
-                                                            <Layers className="h-4 w-4" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-medium text-slate-800 text-sm">{pkg.name}</p>
-                                                            <div className="flex items-center gap-2 mt-0.5">
-                                                                <span className="text-xs font-bold text-slate-700">
-                                                                    ${pkgPrice.toLocaleString()}
-                                                                </span>
-                                                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                                                                    {(pkg.items?.length || 0)} servicios
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`p-1.5 rounded-md transition-all duration-200 ${isExpanded ? 'bg-slate-100 text-slate-600 rotate-180' : 'text-slate-400 hover:bg-slate-50'}`}>
-                                                        <ChevronRight className="h-4 w-4 rotate-90" />
-                                                    </div>
-                                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 bg-slate-50 text-slate-600 hover:bg-primary hover:text-white" onClick={(e) => { e.stopPropagation(); handleAddPackage(pkg); }}>
-                                                        <Plus className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-
-                                            {/* Accordion Content */}
-                                            {isExpanded && (
-                                                <div className="px-3 pb-3 animate-in slide-in-from-top-1 duration-200 fade-in">
-                                                    <div className="bg-slate-50/80 rounded-lg p-2 space-y-1 border border-slate-100">
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">Contenido del Plan</p>
-                                                        {(pkg.items || []).map((item, idx) => {
-                                                            const catItem = catalog.find(c => c.id === item.catalog_item_id);
-                                                            const itemIcon = inferIcon(catItem?.name);
-                                                            const ItemIcon = ICON_MAP[itemIcon] || Zap;
-                                                            return (
-                                                                <div key={idx} className="flex justify-between items-center text-xs text-slate-700 p-2 rounded-md hover:bg-white hover:shadow-sm transition-all">
-                                                                    <span className="flex items-center gap-2">
-                                                                        <ItemIcon className="h-3 w-3 text-slate-400" />
-                                                                        {catItem?.name || 'Item desconocido'}
-                                                                    </span>
-                                                                    <span className="font-medium bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-500">x{item.quantity}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-
-                    {/* RIGHT: Active Budget */}
-                    <div className="w-1/2 flex flex-col bg-white relative overflow-hidden">
-                        <AnimatePresence mode="wait">
-                            {showCustomForm ? (
-                                /* === FULL-PANEL CUSTOM FORM === */
-                                <motion.div
-                                    key="custom-form-panel"
-                                    initial={{ opacity: 0, x: 40 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: 40 }}
-                                    transition={{ duration: 0.25, ease: "easeOut" }}
-                                    className="flex flex-col h-full p-5"
-                                >
-                                    {/* Header */}
-                                    <div className="flex justify-between items-center mb-5 shrink-0">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                                                <Plus className="h-5 w-5" />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-bold text-slate-800">Nuevo Servicio Manual</h4>
-                                                <p className="text-xs text-slate-400">Completa los datos del servicio</p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1 }); }}
-                                            className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
-                                    </div>
-
-                                    {/* Name (single line input) */}
-                                    <div className="shrink-0 mb-3">
-                                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Nombre</label>
-                                        <input
-                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 bg-white font-medium"
-                                            placeholder="Ej: Instalación 30 metros de cableado"
-                                            value={customItem.name}
-                                            onChange={e => setCustomItem(prev => ({ ...prev, name: e.target.value }))}
-                                            autoFocus
-                                        />
-                                    </div>
-
-                                    {/* Description (large textarea, fills remaining space) */}
-                                    <div className="flex-1 flex flex-col mb-3 min-h-0">
-                                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block shrink-0">Descripción</label>
-                                        <textarea
-                                            className="w-full flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 bg-white resize-none leading-relaxed"
-                                            placeholder="Detalle del servicio, notas adicionales, especificaciones técnicas..."
-                                            value={customItem.description}
-                                            onChange={e => setCustomItem(prev => ({ ...prev, description: e.target.value }))}
-                                        />
-                                    </div>
-
-                                    {/* Price + Quantity Row */}
-                                    <div className="shrink-0 mb-4">
-                                        <div className="flex gap-3">
-                                            <div className="flex-1">
-                                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Precio</label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-2.5 text-slate-400 text-sm font-medium">$</span>
-                                                    <input
-                                                        type="number"
-                                                        className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 bg-white font-medium"
-                                                        placeholder="0.00"
-                                                        value={customItem.price}
-                                                        onChange={e => setCustomItem(prev => ({ ...prev, price: e.target.value }))}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="w-24">
-                                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Cantidad</label>
+                                        {/* Price */}
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Precio Unitario</label>
+                                            <div className="relative">
+                                                <span className="absolute left-4 top-3 text-slate-400 text-sm font-semibold">$</span>
                                                 <input
                                                     type="number"
-                                                    min="1"
-                                                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all text-center bg-white font-medium"
-                                                    value={customItem.quantity || 1}
-                                                    onChange={e => setCustomItem(prev => ({ ...prev, quantity: e.target.value }))}
+                                                    className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 bg-white font-medium"
+                                                    placeholder="0.00"
+                                                    value={customItem.price}
+                                                    onChange={e => setCustomItem(prev => ({ ...prev, price: e.target.value }))}
                                                 />
                                             </div>
                                         </div>
+
+                                        {/* Quantity */}
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Cantidad</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all text-center bg-white font-medium"
+                                                value={customItem.quantity || 1}
+                                                onChange={e => setCustomItem(prev => ({ ...prev, quantity: e.target.value }))}
+                                            />
+                                        </div>
                                     </div>
 
-                                    {/* Submit */}
-                                    <div className="shrink-0 flex gap-2">
-                                        <Button
-                                            variant="outline"
-                                            className="flex-1 border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl h-11"
-                                            onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1 }); }}
+                                    {/* Preview Card (bottom) */}
+                                    {customItem.name && customItem.price && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="mt-auto bg-slate-900 text-white p-5 rounded-2xl shadow-xl relative overflow-hidden"
                                         >
-                                            Cancelar
-                                        </Button>
-                                        <Button
-                                            className="flex-[2] bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl h-11 font-semibold"
-                                            disabled={!customItem.name || !customItem.price}
-                                            onClick={handleAddCustomItem}
-                                        >
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            Agregar al Listado
-                                        </Button>
-                                    </div>
-                                </motion.div>
-                            ) : (
-                                /* === NORMAL BUDGET VIEW === */
-                                <motion.div
-                                    key="budget-list-panel"
-                                    initial={{ opacity: 0, x: -40 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -40 }}
-                                    transition={{ duration: 0.25, ease: "easeOut" }}
-                                    className="flex flex-col h-full p-4"
+                                            <div className="absolute top-0 right-0 w-20 h-20 bg-primary/20 rounded-bl-[60px] -mr-6 -mt-6" />
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vista Previa</p>
+                                            <p className="font-bold text-base truncate mb-2">{customItem.name}</p>
+                                            <div className="flex justify-between items-end">
+                                                <span className="text-xs text-slate-400">{customItem.quantity || 1} × ${Number(customItem.price || 0).toLocaleString()}</span>
+                                                <span className="text-2xl font-bold text-primary tracking-tight">
+                                                    ${(Number(customItem.price || 0) * Number(customItem.quantity || 1)).toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </div>
+
+                                {/* Right: Description */}
+                                <div className="w-3/5 p-6 flex flex-col bg-white">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block shrink-0">Descripción</label>
+                                    <textarea
+                                        className="w-full flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-slate-400 bg-white resize-none leading-relaxed"
+                                        placeholder={"Detalle del servicio, notas adicionales, especificaciones técnicas...\n\nEste campo es opcional pero permite documentar toda la información relevante del servicio."}
+                                        value={customItem.description}
+                                        onChange={e => setCustomItem(prev => ({ ...prev, description: e.target.value }))}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="px-6 py-4 bg-white border-t border-slate-100 flex justify-end gap-3 shrink-0 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.05)]">
+                                <Button
+                                    variant="ghost"
+                                    className="h-11 px-5"
+                                    onClick={() => { setShowCustomForm(false); setCustomItem({ name: '', description: '', price: '', quantity: 1 }); }}
                                 >
+                                    Volver al Presupuesto
+                                </Button>
+                                <Button
+                                    className="h-11 px-6 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl font-semibold transition-all hover:scale-[1.02]"
+                                    disabled={!customItem.name || !customItem.price}
+                                    onClick={handleAddCustomItem}
+                                >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Agregar al Listado
+                                </Button>
+                            </div>
+                        </motion.div>
+                    ) : (
+                        /* ============================================================ */
+                        /* ===        NORMAL VIEW: CATALOG + BUDGET PANELS           === */
+                        /* ============================================================ */
+                        <motion.div
+                            key="budget-manager-normal"
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            transition={{ duration: 0.25, ease: "easeOut" }}
+                            className="flex flex-col h-full"
+                        >
+                            <DialogHeader className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-row items-center justify-between space-y-0">
+                                <div>
+                                    <DialogTitle className="font-heading font-bold text-lg text-slate-800 text-left">
+                                        Gestionar Presupuesto
+                                    </DialogTitle>
+                                    <DialogDescription className="text-left">
+                                        Cliente: {client.name || client.businessName}
+                                    </DialogDescription>
+                                </div>
+                            </DialogHeader>
+
+                            <div className="flex-1 flex overflow-hidden">
+                                {/* LEFT: Catalog */}
+                                <div className="w-1/2 border-r border-slate-100 p-4 flex flex-col bg-slate-50/30">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="relative flex-1">
+                                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                            <input
+                                                type="text"
+                                                placeholder={activeTab === 'services' ? "Buscar producto..." : "Buscar plan..."}
+                                                className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none bg-white"
+                                                value={searchTerm}
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                            />
+                                        </div>
+
+                                        <div className="flex bg-slate-200/50 p-1 rounded-lg shrink-0">
+                                            <button
+                                                onClick={() => setActiveTab('services')}
+                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'services' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                            >
+                                                <LayoutGrid className="h-3 w-3" /> Catálogo
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('packages')}
+                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${activeTab === 'packages' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                            >
+                                                <Package className="h-3 w-3" /> Planes
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                                        {activeTab === 'services' ? (
+                                            availableServices.map(service => {
+                                                const iconName = inferIcon(service.name);
+                                                const Icon = ICON_MAP[iconName] || Zap;
+                                                return (
+                                                    <div key={service.id} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-primary/50 hover:shadow-sm transition-all flex justify-between items-center group">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
+                                                                <Icon className="h-4 w-4" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-medium text-slate-800 text-sm">{service.name}</p>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <span className="text-xs font-bold text-slate-600">${Number(service.default_price).toLocaleString()}</span>
+                                                                    {service.sku && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{service.sku}</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 bg-slate-50 hover:bg-primary hover:text-white" onClick={() => handleAddService(service)}>
+                                                            <Plus className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            availablePackages.map(pkg => {
+                                                // Helper function to calculate price if not present
+                                                const getPackagePrice = (p) => {
+                                                    if (p.price && !isNaN(Number(p.price)) && Number(p.price) > 0) return Number(p.price);
+                                                    // Fallback calculation
+                                                    return (p.items || []).reduce((sum, item) => {
+                                                        const catItem = catalog.find(c => c.id === item.catalog_item_id);
+                                                        return sum + ((catItem?.default_price || 0) * (item.quantity || 1));
+                                                    }, 0);
+                                                };
+
+                                                const pkgPrice = getPackagePrice(pkg);
+                                                const isExpanded = expandedPackages[pkg.id];
+
+                                                return (
+                                                    <div key={pkg.id} className={`bg-white rounded-lg border transition-all group overflow-hidden ${isExpanded ? 'border-primary/30 shadow-md ring-1 ring-primary/5' : 'border-slate-200 hover:border-primary/50 hover:shadow-sm'}`}>
+                                                        <div className="p-3 flex justify-between items-center cursor-pointer" onClick={() => togglePackage(pkg.id)}>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`p-2 rounded-full flex items-center justify-center transition-colors ${isExpanded ? 'bg-primary/10 text-primary' : 'bg-slate-50 text-slate-400 group-hover:bg-primary/5 group-hover:text-primary'}`}>
+                                                                        <Layers className="h-4 w-4" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="font-medium text-slate-800 text-sm">{pkg.name}</p>
+                                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                                            <span className="text-xs font-bold text-slate-700">
+                                                                                ${pkgPrice.toLocaleString()}
+                                                                            </span>
+                                                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                                                                                {(pkg.items?.length || 0)} servicios
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2">
+                                                                <div className={`p-1.5 rounded-md transition-all duration-200 ${isExpanded ? 'bg-slate-100 text-slate-600 rotate-180' : 'text-slate-400 hover:bg-slate-50'}`}>
+                                                                    <ChevronRight className="h-4 w-4 rotate-90" />
+                                                                </div>
+                                                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 bg-slate-50 text-slate-600 hover:bg-primary hover:text-white" onClick={(e) => { e.stopPropagation(); handleAddPackage(pkg); }}>
+                                                                    <Plus className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Accordion Content */}
+                                                        {isExpanded && (
+                                                            <div className="px-3 pb-3 animate-in slide-in-from-top-1 duration-200 fade-in">
+                                                                <div className="bg-slate-50/80 rounded-lg p-2 space-y-1 border border-slate-100">
+                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">Contenido del Plan</p>
+                                                                    {(pkg.items || []).map((item, idx) => {
+                                                                        const catItem = catalog.find(c => c.id === item.catalog_item_id);
+                                                                        const itemIcon = inferIcon(catItem?.name);
+                                                                        const ItemIcon = ICON_MAP[itemIcon] || Zap;
+                                                                        return (
+                                                                            <div key={idx} className="flex justify-between items-center text-xs text-slate-700 p-2 rounded-md hover:bg-white hover:shadow-sm transition-all">
+                                                                                <span className="flex items-center gap-2">
+                                                                                    <ItemIcon className="h-3 w-3 text-slate-400" />
+                                                                                    {catItem?.name || 'Item desconocido'}
+                                                                                </span>
+                                                                                <span className="font-medium bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-500">x{item.quantity}</span>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* RIGHT: Active Budget */}
+                                <div className="w-1/2 p-4 flex flex-col bg-white">
                                     <div className="flex justify-between items-center mb-4 shrink-0">
                                         <h4 className="font-bold text-slate-700">Presupuesto Actual</h4>
                                         <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-bold border border-primary/20">
@@ -837,28 +870,28 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                                             <Plus className="h-4 w-4 mr-2" /> Servicio Manual
                                         </Button>
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </div>
+                                </div>
+                            </div>
 
-                <DialogFooter className="px-6 py-4 bg-white border-t border-slate-100 flex justify-end gap-2 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.05)] z-10">
-                    <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
-                    <Button
-                        onClick={handleSaveChanges}
-                        disabled={isSubmitting}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg shadow-primary/20 min-w-[140px]"
-                    >
-                        {isSubmitting ? (
-                            <>Sincronizando...</>
-                        ) : (
-                            <>
-                                <CheckCircle2 className="h-4 w-4" /> Confirmar Cambios
-                            </>
-                        )}
-                    </Button>
-                </DialogFooter>
+                            <DialogFooter className="px-6 py-4 bg-white border-t border-slate-100 flex justify-end gap-2 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.05)] z-10">
+                                <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
+                                <Button
+                                    onClick={handleSaveChanges}
+                                    disabled={isSubmitting}
+                                    className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg shadow-primary/20 min-w-[140px]"
+                                >
+                                    {isSubmitting ? (
+                                        <>Sincronizando...</>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="h-4 w-4" /> Confirmar Cambios
+                                        </>
+                                    )}
+                                </Button>
+                            </DialogFooter>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </DialogContent>
         </Dialog>
     );
