@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuotes } from '../../../hooks/useQuotes';
-import { ArrowLeft, Edit, FileText, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw, Download, Plus, X, Layers } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, User, Mail, Building, FileSpreadsheet, MapPin, CheckCircle, RotateCcw, Download, Plus, X, Layers, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -33,7 +33,7 @@ const ICON_MAP = {
 export default function ClientDetailPage() {
     const { toast } = useToast();
     const { id } = useParams();
-    const { quotes, isLoading: isLoadingQuotes, fetchQuotes, sendQuote, downloadQuote } = useQuotes(id);
+    const { quotes, isLoading: isLoadingQuotes, fetchQuotes, sendQuote, downloadQuote, downloadQuoteOnly } = useQuotes(id);
     const [client, setClient] = useState(null);
     const [services, setServices] = useState([]);
     const [packages, setPackages] = useState([]);
@@ -715,13 +715,23 @@ export default function ClientDetailPage() {
 
                     <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
 
+                    <Button
+                        onClick={() => downloadQuoteOnly()}
+                        disabled={services.length === 0}
+                        variant="outline"
+                        className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 shadow-sm transition-all px-5 hover:shadow-md hover:-translate-y-0.5"
+                    >
+                        <Download className="h-4 w-4 mr-2" />
+                        Descargar Presupuesto
+                    </Button>
+
                     <div className="group relative">
                         <Button
                             onClick={() => sendQuote()}
                             disabled={!client.email_billing && !client.email}
                             className={`bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all px-6 hover:shadow-lg hover:-translate-y-0.5 mt-0 ${(!client.email_billing && !client.email) ? 'opacity-50 cursor-not-allowed hidden md:flex' : ''}`}
                         >
-                            <FileText className="h-4 w-4 mr-2" />
+                            <Send className="h-4 w-4 mr-2" />
                             Enviar Presupuesto
                         </Button>
                         {(!client.email_billing && !client.email) && (

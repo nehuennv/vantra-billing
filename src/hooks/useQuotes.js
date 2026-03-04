@@ -82,12 +82,40 @@ export function useQuotes(clientId) {
         }
     };
 
+    const downloadQuoteOnly = async () => {
+        if (!clientId) return;
+
+        try {
+            const promise = quotesAPI.generateQuote(clientId).then(({ blob, filename }) => {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                // Refresh quotes list since generate-quote also saves to DB
+                fetchQuotes();
+            });
+
+            await toast.promise(promise, {
+                loading: 'Generando presupuesto...',
+                success: 'Presupuesto descargado',
+                error: (err) => err.message || 'Error al generar el presupuesto'
+            });
+        } catch (err) {
+            // Error managed by toast
+        }
+    };
+
     return {
         quotes,
         isLoading,
         isError,
         fetchQuotes,
         sendQuote,
-        downloadQuote
+        downloadQuote,
+        downloadQuoteOnly
     };
 }

@@ -73,5 +73,58 @@ export const quotesAPI = {
             console.error("[Quotes API] Fallo al descargar PDF:", error);
             throw error;
         }
+    },
+
+    // Generar presupuesto sin enviar email (devuelve PDF directo)
+    generateQuote: async (clientId) => {
+        const API_URL = import.meta.env.VITE_API_URL;
+        const API_KEY = import.meta.env.VITE_API_KEY;
+
+        if (!API_URL || !API_KEY) {
+            throw new Error("Configuration Error: VITE_API_URL or VITE_API_KEY is missing");
+        }
+
+        const url = `${API_URL}/v1/clients/${clientId}/generate-quote`;
+
+        const headers = {
+            'x-api-key': API_KEY,
+            'Content-Type': 'application/json'
+        };
+        const token = localStorage.getItem('token');
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({})
+        });
+
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('vantra_user');
+            window.location.href = '/login';
+            return;
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `Error al generar presupuesto (${response.status})`);
+        }
+
+        const blob = await response.blob();
+
+        // Extract filename from header or fallback
+        const disposition = response.headers.get('Content-Disposition');
+        let filename = `Presupuesto_${clientId}.pdf`;
+
+        if (disposition) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) {
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+
+        return { blob, filename };
     }
 };
