@@ -226,7 +226,6 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
     const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
     const [items, setItems] = useState([]);
     const [notifyClient, setNotifyClient] = useState(false);
-    const [ivaPercentage, setIvaPercentage] = useState(21);
 
     // Flow State
     const [status, setStatus] = useState('idle'); // idle, submitting, success, error
@@ -249,14 +248,14 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                 setPeriod(initialData.period || new Date().toISOString().slice(0, 7));
                 setItems(initialData.items || []);
                 setNotifyClient(initialData.options?.notifyClient || false);
-                setIvaPercentage(initialData.iva_percentage || 21);
             } else {
                 if (initialItems && initialItems.length > 0) {
                     const mappedItems = initialItems.map(svc => ({
                         id: crypto.randomUUID(),
                         description: svc.name,
                         quantity: 1,
-                        unit_price: Number(svc.price) || 0
+                        unit_price: Number(svc.price) || 0,
+                        iva_percentage: svc.iva_percentage ?? 21
                     }));
                     setItems(mappedItems);
                 } else {
@@ -265,13 +264,6 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                 setPeriod(new Date().toISOString().slice(0, 7));
                 setNotifyClient(false);
 
-                try {
-                    const stored = JSON.parse(localStorage.getItem('vantra_settings') || '{}');
-                    const defaultTax = stored?.billing?.taxRate;
-                    setIvaPercentage(defaultTax === 10.5 ? 10.5 : 21);
-                } catch {
-                    setIvaPercentage(21);
-                }
             }
         }
     }, [open, initialItems, initialData, client]);
@@ -329,11 +321,11 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
             const payload = {
                 clientId: client?.id,
                 period,
-                iva_percentage: ivaPercentage,
                 items: items.map(i => ({
                     description: i.description,
                     quantity: Number(i.quantity),
-                    unit_price: Number(i.unit_price)
+                    unit_price: Number(i.unit_price),
+                    iva_percentage: i.iva_percentage ?? 21
                 })),
                 options: {
                     notifyClient
@@ -464,18 +456,6 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label className="text-slate-700 font-medium">IVA</Label>
-                                    <select
-                                        value={ivaPercentage}
-                                        onChange={(e) => setIvaPercentage(Number(e.target.value))}
-                                        className="w-full h-11 px-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50 hover:bg-white focus:bg-white text-slate-700 font-medium"
-                                        disabled={readOnly}
-                                    >
-                                        <option value={21}>21%</option>
-                                        <option value={10.5}>10.5%</option>
-                                    </select>
-                                </div>
 
                                 {!readOnly && (
                                     <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${notifyClient ? 'bg-primary/10 border-primary/30 shadow-inner' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
@@ -533,9 +513,10 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-slate-50 text-slate-500 font-bold text-xs uppercase tracking-wider sticky top-0 z-10 shadow-sm">
                                     <tr>
-                                        <th className="px-6 py-4 w-[45%]">Descripción</th>
-                                        <th className="px-4 py-4 w-[15%] text-center">Cant.</th>
-                                        <th className="px-4 py-4 w-[20%] text-right">Precio Unit.</th>
+                                        <th className="px-6 py-4 w-[35%]">Nombre</th>
+                                        <th className="px-4 py-4 w-[12%] text-center">Cant.</th>
+                                        <th className="px-4 py-4 w-[18%] text-right">Precio Unit.</th>
+                                        <th className="px-4 py-4 w-[12%] text-center">IVA</th>
                                         <th className="px-6 py-4 w-[15%] text-right">Subtotal</th>
                                         {!readOnly && <th className="px-2 py-4 w-[5%]"></th>}
                                     </tr>
@@ -556,7 +537,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                                         e.target.style.height = 'auto';
                                                         e.target.style.height = e.target.scrollHeight + 'px';
                                                     }}
-                                                    placeholder="Descripción del servicio..."
+                                                    placeholder="Nombre del servicio..."
                                                     className="w-full border-transparent bg-transparent shadow-none px-0 py-2 focus:ring-0 focus:outline-none placeholder:text-slate-300 font-medium text-slate-700 text-base resize-none overflow-hidden leading-relaxed"
                                                     readOnly={readOnly}
                                                     rows={1}
@@ -588,6 +569,11 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                                     />
                                                 </div>
                                             </td>
+                                            <td className="p-3 text-center align-top pt-4">
+                                                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
+                                                    {item.iva_percentage === -1 ? 'N/G' : `${item.iva_percentage ?? 21}%`}
+                                                </span>
+                                            </td>
                                             <td className="p-3 pr-6 text-right font-bold text-slate-700 tabular-nums text-base align-top pt-4">
                                                 {formatCurrency(Number(item.quantity) * Number(item.unit_price))}
                                             </td>
@@ -606,7 +592,7 @@ export function InvoicePreviewModal({ open, onOpenChange, client, items: initial
                                     ))}
                                     {items.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="py-20 text-center text-slate-400">
+                                            <td colSpan={6} className="py-20 text-center text-slate-400">
                                                 <div className="flex flex-col items-center gap-3">
                                                     <div className="p-3 bg-slate-100 rounded-full">
                                                         <Plus className="h-6 w-6 text-slate-300" />
