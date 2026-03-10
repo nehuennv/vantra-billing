@@ -1170,7 +1170,7 @@ export default function ClientDetailPage() {
                                                         </td>
                                                         <td className="px-6 py-3 text-center">
                                                             <span className={`px-2 py-1 rounded-full text-[10px] uppercase font-bold text-white ${badgeColor}`}>
-                                                                {quote.status === 'SENT' ? 'Enviado' : quote.status === 'ACCEPTED' ? 'Aceptado' : 'Presupuesto'}
+                                                                {['SENT', 'ENVIADO'].includes(quote.status?.toUpperCase()) ? 'Enviado' : ['ACCEPTED', 'ACEPTADO'].includes(quote.status?.toUpperCase()) ? 'Aceptado' : ['REJECTED', 'RECHAZADO'].includes(quote.status?.toUpperCase()) ? 'Rechazado' : ['GENERATED', 'GENERADO'].includes(quote.status?.toUpperCase()) ? 'Generado' : 'Borrador'}
                                                             </span>
                                                         </td>
                                                         <td className="px-6 py-3 text-right font-bold font-sans text-slate-900">

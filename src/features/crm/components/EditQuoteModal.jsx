@@ -15,12 +15,23 @@ const IVA_OPTIONS = [
 ];
 
 const STATUS_OPTIONS = [
-    { value: 'DRAFT', label: 'Borrador' },
-    { value: 'GENERATED', label: 'Generado / PDF' },
-    { value: 'SENT', label: 'Enviado' },
-    { value: 'ACCEPTED', label: 'Aceptado' },
-    { value: 'REJECTED', label: 'Rechazado' },
+    { value: 'BORRADOR', label: 'Borrador' },
+    { value: 'GENERADO', label: 'Generado / PDF' },
+    { value: 'ENVIADO', label: 'Enviado' },
+    { value: 'ACEPTADO', label: 'Aceptado' },
+    { value: 'RECHAZADO', label: 'Rechazado' },
 ];
+
+const mapStatusToSpanish = (status) => {
+    if (!status) return 'BORRADOR';
+    const upper = status.toUpperCase();
+    if (upper === 'DRAFT') return 'BORRADOR';
+    if (upper === 'GENERATED') return 'GENERADO';
+    if (upper === 'SENT') return 'ENVIADO';
+    if (upper === 'ACCEPTED') return 'ACEPTADO';
+    if (upper === 'REJECTED') return 'RECHAZADO';
+    return upper;
+};
 
 export function EditQuoteModal({ isOpen, onClose, quoteId, onSaved }) {
     const { getQuote, updateQuote } = useQuotes();
@@ -32,7 +43,6 @@ export function EditQuoteModal({ isOpen, onClose, quoteId, onSaved }) {
     // Form State
     const [status, setStatus] = useState('DRAFT');
     const [commercialConditions, setCommercialConditions] = useState('');
-    const [globalIva, setGlobalIva] = useState(21);
     const [items, setItems] = useState([]);
 
     const loadQuote = async () => {
@@ -40,9 +50,8 @@ export function EditQuoteModal({ isOpen, onClose, quoteId, onSaved }) {
         setIsLoading(true);
         try {
             const data = await getQuote(quoteId);
-            setStatus(data.status || 'DRAFT');
+            setStatus(mapStatusToSpanish(data.status));
             setCommercialConditions(data.commercial_conditions || '');
-            setGlobalIva(data.iva_percentage ?? 21);
 
             // Map items
             if (data.items && Array.isArray(data.items)) {
@@ -52,7 +61,8 @@ export function EditQuoteModal({ isOpen, onClose, quoteId, onSaved }) {
                     description: item.description || '',
                     quantity: Number(item.quantity || 1),
                     unit_price: Number(item.unit_price || 0),
-                    iva_percentage: item.iva_percentage ?? 21
+                    // Safely extract the IVA percentage, default to 21 if missing/null but not 0
+                    iva_percentage: item.iva_percentage !== null && item.iva_percentage !== undefined ? Number(item.iva_percentage) : 21
                 })));
             } else {
                 setItems([]);
@@ -106,7 +116,6 @@ export function EditQuoteModal({ isOpen, onClose, quoteId, onSaved }) {
             const payload = {
                 status,
                 commercial_conditions: commercialConditions,
-                iva_percentage: globalIva,
                 items: items.map(i => ({
                     display_code: i.display_code,
                     description: i.description,
@@ -190,20 +199,7 @@ export function EditQuoteModal({ isOpen, onClose, quoteId, onSaved }) {
                                         </select>
                                     </div>
 
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 mb-1 block">IVA Global (Opcional si es general)</label>
-                                        <select
-                                            value={globalIva}
-                                            onChange={e => setGlobalIva(Number(e.target.value))}
-                                            className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white"
-                                        >
-                                            {IVA_OPTIONS.map(opt => (
-                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div className="md:col-span-2">
+                                    <div className="md:col-span-1">
                                         <label className="text-xs font-bold text-slate-500 mb-1 block">Condiciones Comerciales</label>
                                         <textarea
                                             value={commercialConditions}
