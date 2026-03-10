@@ -12,6 +12,22 @@ export const quotesAPI = {
         return request(`/v1/clients/${clientId}/quotes?${query}`, 'GET');
     },
 
+    // Obtener un presupuesto con sus items
+    getQuote: (quoteId) => {
+        const query = new URLSearchParams({ _t: Date.now() }).toString();
+        return request(`/v1/quotes/${quoteId}?${query}`, 'GET');
+    },
+
+    // Editar un presupuesto
+    updateQuote: (quoteId, body = {}) => {
+        return request(`/v1/quotes/${quoteId}`, 'PATCH', body);
+    },
+
+    // Eliminar un presupuesto
+    deleteQuote: (quoteId) => {
+        return request(`/v1/quotes/${quoteId}`, 'DELETE');
+    },
+
     // Descargar PDF del presupuesto
     downloadPdf: async (clientId, quoteId) => {
         const API_URL = import.meta.env.VITE_API_URL;

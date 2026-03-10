@@ -115,6 +115,53 @@ export function useQuotes(clientId) {
         }
     };
 
+    const getQuote = async (quoteId) => {
+        try {
+            const response = await quotesAPI.getQuote(quoteId);
+            return response.data || response;
+        } catch (err) {
+            console.error("[useQuotes] Error al obtener el presupuesto:", err);
+            toast.error("Error al obtener los detalles del presupuesto");
+            throw err;
+        }
+    };
+
+    const updateQuote = async (quoteId, updateData) => {
+        try {
+            const promise = quotesAPI.updateQuote(quoteId, updateData).then(res => {
+                fetchQuotes();
+                return res;
+            });
+
+            await toast.promise(promise, {
+                loading: 'Actualizando presupuesto...',
+                success: 'Presupuesto actualizado exitosamente',
+                error: (err) => err.message || 'Error al actualizar el presupuesto'
+            });
+            return true;
+        } catch (err) {
+            return false;
+        }
+    };
+
+    const deleteQuote = async (quoteId) => {
+        try {
+            const promise = quotesAPI.deleteQuote(quoteId).then(res => {
+                fetchQuotes();
+                return res;
+            });
+
+            await toast.promise(promise, {
+                loading: 'Eliminando presupuesto...',
+                success: 'Presupuesto eliminado exitosamente',
+                error: (err) => err.message || 'Error al eliminar el presupuesto'
+            });
+            return true;
+        } catch (err) {
+            return false;
+        }
+    };
+
     return {
         quotes,
         isLoading,
@@ -122,6 +169,9 @@ export function useQuotes(clientId) {
         fetchQuotes,
         sendQuote,
         downloadQuote,
-        downloadQuoteOnly
+        downloadQuoteOnly,
+        getQuote,
+        updateQuote,
+        deleteQuote
     };
 }

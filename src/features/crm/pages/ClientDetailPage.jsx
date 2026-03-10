@@ -10,6 +10,7 @@ import { adaptClient, adaptClientForApi } from "../../../utils/adapters";
 import { DEFAULT_COLUMNS } from '../data/constants';
 import { Input } from "../../../components/ui/Input";
 import { BudgetManagerModal } from "../components/BudgetManagerModal";
+import { EditQuoteModal } from "../components/EditQuoteModal";
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../../billing/components/InvoicePDF';
 import { InvoicePreviewModal } from '../../billing/components/InvoicePreviewModal';
@@ -33,7 +34,7 @@ const ICON_MAP = {
 export default function ClientDetailPage() {
     const { toast } = useToast();
     const { id } = useParams();
-    const { quotes, isLoading: isLoadingQuotes, fetchQuotes, sendQuote, downloadQuote, downloadQuoteOnly } = useQuotes(id);
+    const { quotes, isLoading: isLoadingQuotes, fetchQuotes, sendQuote, downloadQuote, downloadQuoteOnly, deleteQuote } = useQuotes(id);
     const [client, setClient] = useState(null);
     const [services, setServices] = useState([]);
     const [packages, setPackages] = useState([]);
@@ -43,6 +44,11 @@ export default function ClientDetailPage() {
     const [isBudgetManagerOpen, setIsBudgetManagerOpen] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+    // New: State for Edit Quote
+    const [quoteToEdit, setQuoteToEdit] = useState(null);
+    const [isEditQuoteOpen, setIsEditQuoteOpen] = useState(false);
+    const [quoteToDelete, setQuoteToDelete] = useState(null);
 
     // Loading States
     const [isLoadingServices, setIsLoadingServices] = useState(true);
@@ -539,6 +545,12 @@ export default function ClientDetailPage() {
             error: 'Error al eliminar plan'
         });
         setComboToDelete(null);
+    };
+
+    const handleDeleteQuote = async () => {
+        if (!quoteToDelete) return;
+        await deleteQuote(quoteToDelete.id);
+        setQuoteToDelete(null);
     };
 
     if (!client) return (
@@ -1097,23 +1109,6 @@ export default function ClientDetailPage() {
                             )}
                         </div>
 
-                        {/* Condiciones Comerciales */}
-                        {!isLoadingServices && services.length > 0 && (
-                            <div className="px-4 pb-4">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2">
-                                    <FileText className="h-3.5 w-3.5" />
-                                    Condiciones Comerciales
-                                </label>
-                                <textarea
-                                    value={commercialConditions}
-                                    onChange={(e) => setCommercialConditions(e.target.value)}
-                                    placeholder={"PLAZO DE ENTREGA: 48 Hs.\nIMPLEMENTACIÓN: Incluida\nFORMA DE PAGO: Mensual\nVALIDEZ: 15 días"}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all bg-slate-50 hover:bg-white focus:bg-white placeholder:text-slate-300 resize-none leading-relaxed font-medium text-slate-700"
-                                    rows={4}
-                                />
-                                <p className="text-[11px] text-slate-400 mt-1.5">Se incluirá en el PDF del presupuesto. Dejá vacío para omitir.</p>
-                            </div>
-                        )}
 
                         {/* Footer Total */}
                         {
@@ -1182,18 +1177,45 @@ export default function ClientDetailPage() {
                                                             ${amount.toLocaleString()}
                                                         </td>
                                                         <td className="px-6 py-3 text-center">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    downloadQuote(quote);
-                                                                }}
-                                                                title="Descargar PDF"
-                                                            >
-                                                                <Download className="h-4 w-4" />
-                                                            </Button>
+                                                            <div className="flex items-center justify-center gap-1">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setQuoteToEdit(quote.id);
+                                                                        setIsEditQuoteOpen(true);
+                                                                    }}
+                                                                    title="Editar Presupuesto"
+                                                                >
+                                                                    <Edit className="h-4 w-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        downloadQuote(quote);
+                                                                    }}
+                                                                    title="Descargar PDF"
+                                                                >
+                                                                    <Download className="h-4 w-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setQuoteToDelete(quote);
+                                                                    }}
+                                                                    title="Eliminar Presupuesto"
+                                                                >
+                                                                    <Trash className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 )
@@ -1346,6 +1368,8 @@ export default function ClientDetailPage() {
                 client={client}
                 services={services}
                 onSave={handleSaveBudget}
+                commercialConditions={commercialConditions}
+                onCommercialConditionsChange={setCommercialConditions}
             />
 
             <InvoicePreviewModal
@@ -1354,6 +1378,18 @@ export default function ClientDetailPage() {
                 client={client}
                 items={services} // Pass current services as default items
                 onInvoiceCreated={handleInvoiceCreated}
+            />
+
+            <EditQuoteModal
+                isOpen={isEditQuoteOpen}
+                onClose={() => {
+                    setIsEditQuoteOpen(false);
+                    setQuoteToEdit(null);
+                }}
+                quoteId={quoteToEdit}
+                onSaved={() => {
+                    fetchQuotes();
+                }}
             />
 
             {/* View Invoice Modal (Read Only) */}
@@ -1393,6 +1429,16 @@ export default function ClientDetailPage() {
                 title="Eliminar Plan Agrupado"
                 description={`Se eliminarán todos los servicios asociados al plan "${comboToDelete?.name}". Esta acción no se puede deshacer.`}
                 confirmText="Eliminar Todo"
+                variant="destructive"
+            />
+
+            <DeleteConfirmationModal
+                isOpen={!!quoteToDelete}
+                onClose={() => setQuoteToDelete(null)}
+                onConfirm={handleDeleteQuote}
+                title="Eliminar Presupuesto"
+                description={`¿Estás seguro de que deseas eliminar el presupuesto ${quoteToDelete?.quote_number}? Esta acción no se puede deshacer.`}
+                confirmText="Eliminar Presupuesto"
                 variant="destructive"
             />
 

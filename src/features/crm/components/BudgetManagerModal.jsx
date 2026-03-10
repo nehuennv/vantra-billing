@@ -23,7 +23,7 @@ const inferIcon = (name) => {
     return 'Zap';
 };
 
-export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }) {
+export function BudgetManagerModal({ isOpen, onClose, client, services, onSave, commercialConditions = '', onCommercialConditionsChange }) {
     // State is now polymorphic:
     // Item = {
     //    type: 'single' | 'combo',
@@ -904,6 +904,19 @@ export function BudgetManagerModal({ isOpen, onClose, client, services, onSave }
                                                 <p className="text-xs mt-1">Agrega servicios o planes desde el panel izquierdo.</p>
                                             </div>
                                         )}
+                                    </div>
+
+                                    {/* Condiciones Comerciales */}
+                                    <div className="border-t border-slate-100 pt-4 shrink-0">
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Condiciones Comerciales</label>
+                                        <textarea
+                                            value={commercialConditions}
+                                            onChange={(e) => onCommercialConditionsChange?.(e.target.value)}
+                                            placeholder={"PLAZO DE ENTREGA: 48 Hs.\nIMPLEMENTACIÓN: Incluida\nFORMA DE PAGO: Mensual\nVALIDEZ: 15 días"}
+                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all bg-slate-50 hover:bg-white focus:bg-white placeholder:text-slate-300 resize-none leading-relaxed font-medium text-slate-700"
+                                            rows={3}
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Aparece en el PDF del presupuesto.</p>
                                     </div>
 
                                     {/* Button to open Custom Form */}
